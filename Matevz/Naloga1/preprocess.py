@@ -162,7 +162,7 @@ constructed_data.to_csv("preprocessed.csv", index=False)
 col_labels = pd.DataFrame(to_country_and_edition_pairs)
 col_labels.to_csv("col_labels.csv", index=False)
 
-row_labels = pd.DataFrame(to_country_and_edition_pairs)
+row_labels = pd.DataFrame(from_countries)
 row_labels.to_csv("row_labels.csv", index=False)
 
 col_label_decomposition = pd.DataFrame(np.column_stack((to_country_at_corresponding_ix, edition_at_corresponding_ix)))
@@ -170,25 +170,22 @@ col_label_decomposition.to_csv("col_label_decomposition.csv", index=False)
 
 
 
-# np.savetxt("to_country_and_edition_at_ixs.txt", 
-#            np.column_stack((to_country_at_corresponding_ix, edition_at_corresponding_ix)), 
-#            fmt="%s")
 
-# constructed_data = np.zeros((len(from_countries), len(to_country_and_edition_pairs)))
 
-# target_col_ix = 0
-# for edition, data_np in acc_edition2data_np.items():
-#     for row in data_np:
-        
-#         from_country = row[from_country_col_ix]
-#         to_country = row[to_country_col_ix]
 
-#         target_row_ix = from_countries.index(from_country)
-#         constructed_data[target_row_ix, target_col_ix] = row[points_ix]
+from_count_voted_in_edition = pd.DataFrame(False, index=from_countries, columns=acceptable_editions)
 
-#         #THIS DOESNT WORK
-#         target_col_ix += 1
+# Editions where the country voted
+for edition, data_np in acc_edition2data_np.items():
+    acc_edition2list_of_voting_countries = []
+    
+    curr_data = set(data_np[:, from_country_col_ix])
 
-# constructed_df = pd.DataFrame(constructed_data, index=from_countries, columns=to_country_and_edition_pairs)
-# constructed_df.to_csv("preprocessed.csv")
+    for from_country in from_countries:
+        if from_country in curr_data:
+            from_count_voted_in_edition.at[from_country, edition] = True
 
+# save this to a file
+from_count_voted_in_edition.to_csv("from_count_voted_in_edition.csv")
+
+    
