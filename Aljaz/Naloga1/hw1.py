@@ -106,6 +106,8 @@ class HierarchicalClustering:
         # the function that measures distances clusters (lists of data vectors)
         self.cluster_dist = cluster_dist
 
+        self.index = 10
+
         # if the results of run() also needs to include distances;
         # if true, each joined pair in also described by a distance.
         self.return_distances = return_distances
@@ -114,6 +116,7 @@ class HierarchicalClustering:
         """
         Return the closest pair of clusters and their distance.
         """
+        self.index += 1
         values = []
         for cluster in clusters:
             cluster_values = []
@@ -132,10 +135,15 @@ class HierarchicalClustering:
                     min_i = i
                     min_j = j
                     dist_is_nan = False
-        if dist_is_nan:
-            return clusters[0], clusters[1], math.nan
         
-        return clusters[min_i], clusters[min_j], min_dist
+        if self.return_distances:
+            if dist_is_nan:
+                return clusters[0], clusters[1], math.nan
+            return clusters[min_i], clusters[min_j], min_dist
+        
+        if dist_is_nan:
+            return clusters[0], clusters[1], self.index
+        return clusters[min_i], clusters[min_j], self.index
         
     def run(self, data):
         """
@@ -156,7 +164,7 @@ class HierarchicalClustering:
             if self.return_distances:
                 clusters.append([first, second, distance])
             else:
-                clusters.append([first, second])      
+                clusters.append([distance, first, second, distance])
         return clusters
 
 
@@ -195,26 +203,6 @@ def silhouette_average(data, clusters):
         silhouette_sum += silhouette(el, clusters, data)
 
     return silhouette_sum / len(data)
-
-'''
-if __name__ == "__main__":
-
-    data = {"a": [1, 2],
-            "b": [2, 3],
-            "c": [5, 5]}
-
-    def average_linkage_w_manhattan(c1, c2):
-        return average_linkage(c1, c2, manhattan_dist)
-
-    hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan)
-    clusters = hc.run(data)
-    print(clusters)  # [[['c'], [['a'], ['b']]]] (or equivalent)
-
-    hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan,
-                                return_distances=True)
-    clusters = hc.run(data)
-    print(clusters)  # [[['c'], [['a'], ['b'], 2.0], 6.0]] (or equivalent)
-'''
 
 
 def prepare_profile():
@@ -288,36 +276,86 @@ def flatten_clusters(clusters):
             flattened.append(item)
     return flattened
 
-def dendrogram(clusters):
-    import matplotlib.pyplot as plt
-    from scipy.cluster.hierarchy import dendrogram
+def create_dendrogram(clusters):
+    flattened = flatten_clusters(clusters)
+    flattened = [x for x in flattened if isinstance(x, str)]
 
-    # Construct the linkage matrix
-    leaves = flatten_clusters(clusters)
+    for i in range(len(flattened) - 1, 0, -1):
+        flattened.insert(i, ' ')
 
-    # index  = dict( (tuple([n]), i) for i, n in enumerate(leaves) )
-    Z = []
-    # k = len(leaves)
-    # for i, n in enumerate(inner_nodes):
-    #     children = d[n]
-    #     x = children[0]
-    #     for y in children[1:]:
-    #         z = tuple(subtree[x] + subtree[y])
-    #         i, j = index[tuple(subtree[x])], index[tuple(subtree[y])]
-    #         Z.append([i, j, float(len(subtree[n])), len(z)]) # <-- float is required by the dendrogram function
-    #         index[z] = k
-    #         subtree[z] = list(z)
-    #         x = z
-    #         k += 1
+    middle = [x for x in range(len(flattened))]
+    height = [0 for x in range(len(flattened))]
+    dendrogram = [flattened]
 
-    # Visualize
-    dendrogram(Z, labels=leaves)
-    plt.show()
+    clusters_str = str(clusters)
+    for i in range(11, 52):
+        splitted = clusters_str.split(str(i))
+        cluster = splitted[1]
+
+
+
+        
+
+
+        countries = []
+        for char in cluster.split("'"):
+            if char.isalpha():
+                countries.append(char)
+
+        dendrogram.append([' ' for x in range(len(flattened))])
+        dendrogram.append([' ' for x in range(len(flattened))])
+        dendrogram.append([' ' for x in range(len(flattened))])
+
+        # Get index of the first and last country
+        first = flattened.index(countries[0])
+        last = flattened.index(countries[-1])
+
+        # Draw '-'
+        new_height = max(height[first], height[last]) + 3
+        for i in range(min(height[first], height[last]), new_height):
+            if i > height[first]:
+                dendrogram[i][middle[first]] = "-"
+            if i > height[last]:
+                dendrogram[i][middle[last]] = "-"
+
+        # Draw '|' and '+'
+        new_middle = (middle[first] + middle[last]) // 2
+        for i in range(min(middle[first], middle[last]), max(middle[first], middle[last]) + 1):
+            dendrogram[new_height][i] = "|"
+        dendrogram[new_height][new_middle] = "+"
+
+        '''
+
+        Russia  --|
+                  +-----|
+        Ukraine --|     |
+                        |
+        Albania --|     +
+                  +--|  |
+        Croatia --|  |  |
+                     +--|
+        Serbia  --|  |
+                  +--|
+        Latvia  --|
+        
+        '''
+        # break
+    return dendrogram
+
+def draw_dendrogram(dendrogram):
+    for row in range(len(dendrogram[0])):
+        print(f'{dendrogram[0][row]:<15}', end="")
+        for col in dendrogram[1:]:
+            print(col[row], end="")
+        print()
 
 
 data = prepare_profile()
 clusters = run_hc(data)
-dendrogram(clusters)
+# print(clusters)
+# dendrogram(clusters)
+dendrogram = create_dendrogram(clusters)
+draw_dendrogram(dendrogram)
 
 
 
