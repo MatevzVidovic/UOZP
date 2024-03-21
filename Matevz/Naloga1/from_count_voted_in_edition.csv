@@ -1,0 +1,57 @@
+,1992f,1993f,1994f,1995f,1996f,1997f,1998f,1999f,2000f,2001f,2002f,2003f,2004f,2005f,2006f,2007f,2008f,2009f,2010f,2011f,2012f,2013f,2014f,2015f,2016f,2017f,2018f,2019f,2020f,2021f,2022f,2023f
+Austria,True,True,True,True,True,True,False,True,True,False,True,True,True,True,False,True,False,False,False,True,True,True,True,True,True,True,True,True,False,True,True,True
+Belgium,True,True,False,True,True,False,True,True,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Denmark,True,True,False,True,False,True,False,True,True,True,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+France,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Germany,True,True,True,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Italy,True,True,False,False,False,True,False,False,False,False,False,False,False,False,False,False,False,False,False,True,True,True,True,True,True,True,True,True,False,True,True,True
+Luxembourg,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Switzerland,True,True,True,False,True,True,True,False,True,False,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Netherlands,True,True,True,False,True,True,True,True,True,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+United Kingdom,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Sweden,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Monaco,False,False,False,False,False,False,False,False,False,False,False,False,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Norway,True,True,True,True,True,True,True,True,True,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Finland,True,True,True,False,True,False,True,False,True,False,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Spain,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Yugoslavia,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Portugal,True,True,True,True,True,True,True,True,False,True,False,True,True,True,True,True,True,True,True,True,True,False,True,True,False,True,True,True,False,True,True,True
+Ireland,True,True,True,True,True,True,True,True,True,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Malta,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Israel,True,True,False,True,False,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Greece,True,True,True,True,True,True,True,False,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Turkey,True,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,False
+Morocco,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Cyprus,True,True,True,True,True,True,True,True,True,False,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True,True,True,False,True,True,True
+Iceland,True,True,True,True,True,True,False,True,True,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Bosnia & Herzegovina,False,True,True,True,True,True,False,True,False,True,True,True,True,True,True,True,True,True,True,True,True,False,False,False,True,False,False,False,False,False,False,False
+Croatia,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,True,True,True,True,False,True,True,True
+Slovenia,False,True,False,True,True,True,True,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Estonia,False,False,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Hungary,False,False,True,True,False,True,True,False,False,False,False,False,False,True,False,True,True,True,False,True,True,True,True,True,True,True,True,True,False,False,False,False
+Lithuania,False,False,True,False,False,False,False,True,False,True,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Poland,False,False,True,True,True,True,True,True,False,True,False,True,True,True,True,True,True,True,True,True,False,False,True,True,True,True,True,True,False,True,True,True
+Romania,False,False,True,False,False,False,True,False,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True,False,True,True,True
+Russia,False,False,True,True,False,True,False,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,False,True,False,False
+Slovakia,False,False,True,False,True,False,True,False,False,False,False,False,False,False,False,False,False,True,True,True,True,False,False,False,False,False,False,False,False,False,False,False
+F.Y.R. Macedonia,False,False,False,False,False,False,True,False,True,False,True,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,False,False,False
+Latvia,False,False,False,False,False,False,False,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Ukraine,False,False,False,False,False,False,False,False,False,False,False,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True,False,False,True,True,True
+Albania,False,False,False,False,False,False,False,False,False,False,False,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Andorra,False,False,False,False,False,False,False,False,False,False,False,False,True,True,True,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Belarus,False,False,False,False,False,False,False,False,False,False,False,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,False,False,False
+Serbia & Montenegro,False,False,False,False,False,False,False,False,False,False,False,False,True,True,True,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Bulgaria,False,False,False,False,False,False,False,False,False,False,False,False,False,True,True,True,True,True,True,True,True,True,False,False,True,True,True,False,False,True,True,False
+Moldova,False,False,False,False,False,False,False,False,False,False,False,False,False,True,True,True,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Armenia,False,False,False,False,False,False,False,False,False,False,False,False,False,False,True,True,True,True,True,True,False,True,True,True,True,True,True,True,False,False,True,True
+Czech Republic,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,True,True,True,False,False,False,False,False,True,True,True,True,True,False,True,True,True
+Georgia,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,True,True,False,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+Montenegro,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,True,True,True,False,False,True,True,True,True,True,True,True,True,False,False,True,False
+Serbia,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,True,True,True,True,True,True,True,False,True,True,True,True,True,False,True,True,True
+Azerbaijan,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,True,True,True,True,True,True,True,True,True,True,True,True,False,True,True,True
+San Marino,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,True,False,False,True,True,True,True,True,True,True,True,True,False,True,True,True
+Australia,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,True,True,True,True,True,False,True,True,True
+Macedonia,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+North Macedonia,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,True,False,True,True,False
+Rest of the world,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False
+Rest of the World,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,False,True
