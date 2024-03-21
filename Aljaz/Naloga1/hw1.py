@@ -1,6 +1,12 @@
 import math
 import pandas as pd
 
+# TODO:
+# - draw the dendrogram
+# - solve the closest_sluster nan problem (distance between cluster and all other clusters is nan)
+# - try diferent linkage methods and distance computations
+# - try different data preprocessing
+
 def manhattan_dist(r1, r2):
     # """ Arguments r1 and r2 are lists of numbers """
     count_nan = 0
@@ -116,6 +122,7 @@ class HierarchicalClustering:
                     cluster_values.append(data[char])
             values.append(cluster_values)
 
+        dist_is_nan = True
         min_dist = float("inf")
         for i in range(len(clusters)):
             for j in range(i + 1, len(clusters)):
@@ -124,7 +131,10 @@ class HierarchicalClustering:
                     min_dist = dist
                     min_i = i
                     min_j = j
-
+                    dist_is_nan = False
+        if dist_is_nan:
+            return clusters[0], clusters[1], math.nan
+        
         return clusters[min_i], clusters[min_j], min_dist
         
     def run(self, data):
@@ -186,54 +196,133 @@ def silhouette_average(data, clusters):
 
     return silhouette_sum / len(data)
 
+'''
+if __name__ == "__main__":
 
-# if __name__ == "__main__":
+    data = {"a": [1, 2],
+            "b": [2, 3],
+            "c": [5, 5]}
 
-#     data = {"a": [1, 2],
-#             "b": [2, 3],
-#             "c": [5, 5]}
+    def average_linkage_w_manhattan(c1, c2):
+        return average_linkage(c1, c2, manhattan_dist)
 
-#     def average_linkage_w_manhattan(c1, c2):
-#         return average_linkage(c1, c2, manhattan_dist)
+    hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan)
+    clusters = hc.run(data)
+    print(clusters)  # [[['c'], [['a'], ['b']]]] (or equivalent)
 
-#     hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan)
-#     clusters = hc.run(data)
-#     print(clusters)  # [[['c'], [['a'], ['b']]]] (or equivalent)
+    hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan,
+                                return_distances=True)
+    clusters = hc.run(data)
+    print(clusters)  # [[['c'], [['a'], ['b'], 2.0], 6.0]] (or equivalent)
+'''
 
-#     hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan,
-#                                 return_distances=True)
-#     clusters = hc.run(data)
-#     print(clusters)  # [[['c'], [['a'], ['b'], 2.0], 6.0]] (or equivalent)
 
 def prepare_profile():
     df = pd.read_excel("eurovision_song_contest_1957_2023.xlsx")
+    # Rename "Points      " column to "Points"
+    df = df.rename(columns={"Points      ": "Points"})
 
     # Delete Edition column, because it's just a combinaton of Year and Edition
     df = df.drop(columns=["Edition"])
 
-    # Delete all duplicates
+    # Delete all duplicates and delete the column "Duplicate"
     df = df[df.Duplicate != "x"]
-    # Delete Duplicate column
     df = df.drop(columns=["Duplicate"])
 
-    # TRY WITH POINTS AVERAGE AND TIME PERIODS
-    # In 2016 voting system changed, from mixed system to two separate systems: jury and televoting
+    # Delete all rows which are not finals
+    df = df[df["(semi-) final"] == "f"]
+    # Delete "(semi-) final" column
+    df = df.drop(columns=["(semi-) final"])
+
+    # Delete rows with To country "Rest of the World" - not enough data
+    df = df[df["To country"] != "Rest of the World"]
+
+    # In 2016 voting system changed, from mixed system to two separate systems: jury and televoting and delete the column "Year"
     df_before_2016 = df[df.Year <= 2016]
     df_after_2016 = df[df.Year >= 2016]
+    df_after_2016 = df_after_2016.drop(columns=["Year"])
 
-    # Divide the data into two dataframes: one for jury votes and one for televoting
+    # Divide the data into two dataframes: one for jury votes and one for televoting and delete the column "Jury or Televoting"
     df_jury = df_after_2016[df_after_2016["Jury or Televoting"] == "J"]
     df_jury = df_jury.drop(columns=["Jury or Televoting"])
     df_televoting = df_after_2016[df_after_2016["Jury or Televoting"] == "T"]
     df_televoting = df_televoting.drop(columns=["Jury or Televoting"])
     df_before_2016 = df_before_2016.drop(columns=["Jury or Televoting"])
 
-    # solve problem with semifinales
-    # maybe start with hierarchical clustering after 2016 (first telvoting and then jury) and just use average number of points for each country
-    # From country is the name of the "point", To country (use a dict of countries) and points are the values
+    # Calculate average points for each pair of From country and To country
+    df_televoting_avg = df_televoting.groupby(["From country", "To country"]).mean()
+    # df_televoting_avg.to_excel("eurovision_song_contest_2016_2023_avg.xlsx")
+
+    # Count how many times each pair of From country and To country voted
+    df_televoting_cnt = df_televoting.groupby(["From country", "To country"]).count()
+    # df_televoting_cnt.to_excel("eurovision_song_contest_2016_2023_cnt.xlsx")
+
+    # Make a matrix: From country are the names of the rows and To country are the names of the columns
+    df_televoting_avg = df_televoting_avg.unstack(level=-1)
+    # df_televoting_avg = df_televoting_avg.fillna(0)
+    # df_televoting_avg.to_excel("eurovision_song_contest_2016_2023_matrix.xlsx")
+
+    # Make a dict from the dataframe with From country as the key and values as a list of distances to To countries
+    df_televoting_avg.columns = df_televoting_avg.columns.droplevel()
+    data = df_televoting_avg.to_dict()
+    for key in data:
+        data[key] = list(data[key].values())
     
-    # Also ask chatgpt how would it solve this problem
+    return data
 
-    # TRY WITH PCA
+def run_hc(data):
+    def average_linkage_w_euclidean(c1, c2):
+        return average_linkage(c1, c2, euclidean_dist)
+    
+    hc = HierarchicalClustering(cluster_dist=average_linkage_w_euclidean)
+    clusters = hc.run(data)
+    # print(clusters)
+    return clusters
 
-prepare_profile()
+def flatten_clusters(clusters):
+    flattened = []
+    for item in clusters:
+        if isinstance(item, list):
+            flattened.extend(flatten_clusters(item))
+        else:
+            flattened.append(item)
+    return flattened
+
+def dendrogram(clusters):
+    import matplotlib.pyplot as plt
+    from scipy.cluster.hierarchy import dendrogram
+
+    # Construct the linkage matrix
+    leaves = flatten_clusters(clusters)
+
+    # index  = dict( (tuple([n]), i) for i, n in enumerate(leaves) )
+    Z = []
+    # k = len(leaves)
+    # for i, n in enumerate(inner_nodes):
+    #     children = d[n]
+    #     x = children[0]
+    #     for y in children[1:]:
+    #         z = tuple(subtree[x] + subtree[y])
+    #         i, j = index[tuple(subtree[x])], index[tuple(subtree[y])]
+    #         Z.append([i, j, float(len(subtree[n])), len(z)]) # <-- float is required by the dendrogram function
+    #         index[z] = k
+    #         subtree[z] = list(z)
+    #         x = z
+    #         k += 1
+
+    # Visualize
+    dendrogram(Z, labels=leaves)
+    plt.show()
+
+
+data = prepare_profile()
+clusters = run_hc(data)
+dendrogram(clusters)
+
+
+
+
+
+
+
+
