@@ -82,7 +82,6 @@ print(5*"\n")
 
 
 
-
 acceptable_editions = [str(i) + "f" for i in range(1992,2024)]
 # print("acceptable_editions")
 # print(acceptable_editions)
@@ -135,11 +134,14 @@ for acc_edition in acceptable_editions:
 
 
 
-# fills it with zeros
-constructed_data = pd.DataFrame(0, index=from_countries, columns=to_country_and_edition_pairs)
+# fills it with NaNs
+constructed_data = pd.DataFrame(float('nan'), index=from_countries, columns=to_country_and_edition_pairs)
 
-print("Is this all zeros?")
-print((constructed_data == 0).all().all())
+
+# check if all entries in constructed_data are NaNs
+print("Is this all Nans?")
+print(constructed_data.isnull().values.all())
+# what does isnull() return? A boolean mask of the same shape as the DataFrame, True if the value is NaN, False otherwise.
 
 for edition, data_np in acc_edition2data_np.items():
     for row in data_np:
