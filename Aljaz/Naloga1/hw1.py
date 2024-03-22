@@ -1,9 +1,9 @@
 import math
 import pandas as pd
 
+num_of_clusters = 0
 # TODO:
-# - draw the dendrogram
-# - solve the closest_sluster nan problem (distance between cluster and all other clusters is nan)
+# - solve the closest_cluster nan problem (distance between cluster and all other clusters is nan)
 # - try diferent linkage methods and distance computations
 # - try different data preprocessing
 
@@ -106,6 +106,7 @@ class HierarchicalClustering:
         # the function that measures distances clusters (lists of data vectors)
         self.cluster_dist = cluster_dist
 
+        # index needed for visualization
         self.index = 10
 
         # if the results of run() also needs to include distances;
@@ -165,6 +166,8 @@ class HierarchicalClustering:
                 clusters.append([first, second, distance])
             else:
                 clusters.append([distance, first, second, distance])
+        global num_of_clusters
+        num_of_clusters = self.index
         return clusters
 
 
@@ -262,9 +265,24 @@ def run_hc(data):
     def average_linkage_w_euclidean(c1, c2):
         return average_linkage(c1, c2, euclidean_dist)
     
-    hc = HierarchicalClustering(cluster_dist=average_linkage_w_euclidean)
+    def single_linkage_w_euclidean(c1, c2):
+        return single_linkage(c1, c2, euclidean_dist)
+    
+    def complete_linkage_w_euclidean(c1, c2):
+        return complete_linkage(c1, c2, euclidean_dist)
+    
+    def average_linkage_w_cosine(c1, c2):
+        return average_linkage(c1, c2, cosine_dist)
+    
+    def single_linkage_w_cosine(c1, c2):
+        return single_linkage(c1, c2, cosine_dist)
+    
+    def complete_linkage_w_cosine(c1, c2):
+        return complete_linkage(c1, c2, cosine_dist)
+    
+    hc = HierarchicalClustering(cluster_dist=average_linkage_w_cosine)
+
     clusters = hc.run(data)
-    # print(clusters)
     return clusters
 
 def flatten_clusters(clusters):
@@ -272,43 +290,45 @@ def flatten_clusters(clusters):
     for item in clusters:
         if isinstance(item, list):
             flattened.extend(flatten_clusters(item))
-        else:
+        elif isinstance(item, str):
             flattened.append(item)
-    return flattened
+    return [x for x in flattened if isinstance(x, str)]
 
 def create_dendrogram(clusters):
+    # Get all countries in same order as in the clusters
     flattened = flatten_clusters(clusters)
-    flattened = [x for x in flattened if isinstance(x, str)]
 
+    # Add spaces between countries for better visualization
     for i in range(len(flattened) - 1, 0, -1):
         flattened.insert(i, ' ')
 
+    # Create list with height and middle of each country
     middle = [x for x in range(len(flattened))]
     height = [0 for x in range(len(flattened))]
+
+    # Create dendrogram
     dendrogram = [flattened]
 
-    clusters_str = str(clusters)
-    for i in range(11, 52):
+    clusters_str = str(clusters)  
+    for i in range(11, num_of_clusters + 1):
+        # Get countries in the next cluster
         splitted = clusters_str.split(str(i))
         cluster = splitted[1]
-
-
-
-        
-
-
+        if i == 48:
+            a = 1
         countries = []
         for char in cluster.split("'"):
-            if char.isalpha():
+            if char.split()[0].isalpha():
                 countries.append(char)
-
-        dendrogram.append([' ' for x in range(len(flattened))])
-        dendrogram.append([' ' for x in range(len(flattened))])
-        dendrogram.append([' ' for x in range(len(flattened))])
 
         # Get index of the first and last country
         first = flattened.index(countries[0])
         last = flattened.index(countries[-1])
+
+        # Add 3 empty rows
+        dendrogram.append([' ' for x in range(len(flattened))])
+        dendrogram.append([' ' for x in range(len(flattened))])
+        dendrogram.append([' ' for x in range(len(flattened))])
 
         # Draw '-'
         new_height = max(height[first], height[last]) + 3
@@ -324,22 +344,11 @@ def create_dendrogram(clusters):
             dendrogram[new_height][i] = "|"
         dendrogram[new_height][new_middle] = "+"
 
-        '''
-
-        Russia  --|
-                  +-----|
-        Ukraine --|     |
-                        |
-        Albania --|     +
-                  +--|  |
-        Croatia --|  |  |
-                     +--|
-        Serbia  --|  |
-                  +--|
-        Latvia  --|
+        # Update height and middle
+        for i in range(first, last + 1):
+            height[i] = new_height
+            middle[i] = new_middle
         
-        '''
-        # break
     return dendrogram
 
 def draw_dendrogram(dendrogram):
@@ -349,13 +358,80 @@ def draw_dendrogram(dendrogram):
             print(col[row], end="")
         print()
 
+def dendrogram_scipy():
+    import numpy as np
+    from scipy.cluster.hierarchy import dendrogram
+    import matplotlib.pyplot as plt
+
+    # Example linkage matrix (replace with your actual data)
+    Z = np.array([
+        [0, 1, 0.5, 2],   # Merge cluster 0 and 1 at distance 0.5, resulting in new cluster 2
+        [2, 3, 0.8, 4],   # Merge cluster 2 and 3 at distance 0.8, resulting in new cluster 4
+        # ... (more rows representing additional merges)
+    ])
+
+    # Plot the dendrogram
+    plt.figure(figsize=(8, 6))
+    dendrogram(Z)
+    plt.title("Hierarchical Clustering Dendrogram")
+    plt.xlabel("Data Points")
+    plt.ylabel("Distance")
+    plt.show()
+
+    # # Load required modules
+    # import networkx as nx
+    # import matplotlib.pyplot as plt
+    # from scipy.cluster.hierarchy import dendrogram
+
+    # # Construct the graph/hierarchy
+    # d           = { 0: [1, 'd'], 1: ['a', 'b', 'c'], 'a': [], 'b': [], 'c': [], 'd': []}
+    # G           = nx.DiGraph(d)
+    # nodes       = G.nodes()
+    # leaves      = set( n for n in nodes if G.out_degree(n) == 0 )
+    # inner_nodes = [ n for n in nodes if G.out_degree(n) > 0 ]
+
+    # # Compute the size of each subtree
+    # subtree = dict( (n, [n]) for n in leaves )
+    # for u in inner_nodes:
+    #     children = set()
+    #     node_list = list(d[u])
+    #     while len(node_list) > 0:
+    #         v = node_list.pop(0)
+    #         children.add( v )
+    #         node_list += d[v]
+
+    #     subtree[u] = sorted(children & leaves)
+
+    # inner_nodes.sort(key=lambda n: len(subtree[n])) # <-- order inner nodes ascending by subtree size, root is last
+
+    # # Construct the linkage matrix
+    # leaves = sorted(leaves)
+    # index  = dict( (tuple([n]), i) for i, n in enumerate(leaves) )
+    # Z = []
+    # k = len(leaves)
+    # for i, n in enumerate(inner_nodes):
+    #     children = d[n]
+    #     x = children[0]
+    #     for y in children[1:]:
+    #         z = tuple(subtree[x] + subtree[y])
+    #         i, j = index[tuple(subtree[x])], index[tuple(subtree[y])]
+    #         Z.append([i, j, float(len(subtree[n])), len(z)]) # <-- float is required by the dendrogram function
+    #         index[z] = k
+    #         subtree[z] = list(z)
+    #         x = z
+    #         k += 1
+
+    # # Visualize
+    # dendrogram(Z, labels=leaves)
+    # plt.show()
+
 
 data = prepare_profile()
 clusters = run_hc(data)
 # print(clusters)
-# dendrogram(clusters)
 dendrogram = create_dendrogram(clusters)
 draw_dendrogram(dendrogram)
+# dendrogram_scipy()
 
 
 
