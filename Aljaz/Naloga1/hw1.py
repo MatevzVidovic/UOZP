@@ -411,8 +411,6 @@ def create_dendrogram(clusters):
         # Get countries in the next cluster
         splitted = clusters_str.split(str(i))
         cluster = splitted[1]
-        if i == 48:
-            a = 1
         countries = []
         for char in cluster.split("'"):
             if char.split()[0].isalpha():
@@ -457,17 +455,64 @@ def draw_dendrogram(dendrogram):
             print(col[row], end="")
         print()
 
+def construct_Z_matrix(clusters):
+    # Get all countries in same order as in the clusters
+    flattened = flatten_clusters(clusters)
+
+    # Example linkage matrix (replace with your actual data)
+    # Z = np.array([
+    #     [0, 1, 0.5, 2],   # Merge cluster 0 and 1 at distance 0.5, resulting in new cluster 2
+    #     [2, 3, 0.8, 4],   # Merge cluster 2 and 3 at distance 0.8, resulting in new cluster 4
+    #     # ... (more rows representing additional merges)
+    # ])
+
+    Z = []
+    countries_dict = {}
+    index = 0
+    clusters_str = str(clusters)  
+    for i in range(11, num_of_clusters + 1):
+        splitted = clusters_str.split(str(i))
+        cluster = splitted[1]
+        countries = []
+        for char in cluster.split("'"):
+            if char.split()[0].isalpha():
+                countries.append(char)
+            elif char.split()[0].isnumeric():
+                distance = float(char)
+        
+        first = False
+        if countries[0] not in countries_dict:
+            countries_dict[countries[0]] = index
+            index += 1
+            first = True
+        elif countries[-1] not in countries_dict:
+            countries_dict[countries[-1]] = index
+            index += 1
+
+        if first:
+            Z.append([countries_dict[countries[0]], countries_dict[countries[-1]], distance, index])
+        else:
+            Z.append([countries_dict[countries[0]], countries_dict[countries[-1]], distance, index])
+        index += 1
+
+
+        
+  
+    return Z
+
 def dendrogram_scipy():
     import numpy as np
     from scipy.cluster.hierarchy import dendrogram
     import matplotlib.pyplot as plt
 
     # Example linkage matrix (replace with your actual data)
-    Z = np.array([
-        [0, 1, 0.5, 2],   # Merge cluster 0 and 1 at distance 0.5, resulting in new cluster 2
-        [2, 3, 0.8, 4],   # Merge cluster 2 and 3 at distance 0.8, resulting in new cluster 4
-        # ... (more rows representing additional merges)
-    ])
+    # Z = np.array([
+    #     [0, 1, 0.5, 2],   # Merge cluster 0 and 1 at distance 0.5, resulting in new cluster 2
+    #     [2, 3, 0.8, 4],   # Merge cluster 2 and 3 at distance 0.8, resulting in new cluster 4
+    #     # ... (more rows representing additional merges)
+    # ])
+
+    Z = construct_Z_matrix(clusters)
 
     # Plot the dendrogram
     plt.figure(figsize=(8, 6))
@@ -477,59 +522,61 @@ def dendrogram_scipy():
     plt.ylabel("Distance")
     plt.show()
 
-    # # Load required modules
-    # import networkx as nx
-    # import matplotlib.pyplot as plt
-    # from scipy.cluster.hierarchy import dendrogram
+def dendrogram_scipy_2():
+        # Load required modules
+    import networkx as nx
+    import matplotlib.pyplot as plt
+    from scipy.cluster.hierarchy import dendrogram
 
-    # # Construct the graph/hierarchy
-    # d           = { 0: [1, 'd'], 1: ['a', 'b', 'c'], 'a': [], 'b': [], 'c': [], 'd': []}
-    # G           = nx.DiGraph(d)
-    # nodes       = G.nodes()
-    # leaves      = set( n for n in nodes if G.out_degree(n) == 0 )
-    # inner_nodes = [ n for n in nodes if G.out_degree(n) > 0 ]
+    # Construct the graph/hierarchy
+    d           = { 0: [1, 'd'], 1: ['a', 'b', 'c'], 'a': [], 'b': [], 'c': [], 'd': []}
+    G           = nx.DiGraph(d)
+    nodes       = G.nodes()
+    leaves      = set( n for n in nodes if G.out_degree(n) == 0 )
+    inner_nodes = [ n for n in nodes if G.out_degree(n) > 0 ]
 
-    # # Compute the size of each subtree
-    # subtree = dict( (n, [n]) for n in leaves )
-    # for u in inner_nodes:
-    #     children = set()
-    #     node_list = list(d[u])
-    #     while len(node_list) > 0:
-    #         v = node_list.pop(0)
-    #         children.add( v )
-    #         node_list += d[v]
+    # Compute the size of each subtree
+    subtree = dict( (n, [n]) for n in leaves )
+    for u in inner_nodes:
+        children = set()
+        node_list = list(d[u])
+        while len(node_list) > 0:
+            v = node_list.pop(0)
+            children.add( v )
+            node_list += d[v]
 
-    #     subtree[u] = sorted(children & leaves)
+        subtree[u] = sorted(children & leaves)
 
-    # inner_nodes.sort(key=lambda n: len(subtree[n])) # <-- order inner nodes ascending by subtree size, root is last
+    inner_nodes.sort(key=lambda n: len(subtree[n])) # <-- order inner nodes ascending by subtree size, root is last
 
-    # # Construct the linkage matrix
-    # leaves = sorted(leaves)
-    # index  = dict( (tuple([n]), i) for i, n in enumerate(leaves) )
-    # Z = []
-    # k = len(leaves)
-    # for i, n in enumerate(inner_nodes):
-    #     children = d[n]
-    #     x = children[0]
-    #     for y in children[1:]:
-    #         z = tuple(subtree[x] + subtree[y])
-    #         i, j = index[tuple(subtree[x])], index[tuple(subtree[y])]
-    #         Z.append([i, j, float(len(subtree[n])), len(z)]) # <-- float is required by the dendrogram function
-    #         index[z] = k
-    #         subtree[z] = list(z)
-    #         x = z
-    #         k += 1
+    # Construct the linkage matrix
+    leaves = sorted(leaves)
+    index  = dict( (tuple([n]), i) for i, n in enumerate(leaves) )
+    Z = []
+    k = len(leaves)
+    for i, n in enumerate(inner_nodes):
+        children = d[n]
+        x = children[0]
+        for y in children[1:]:
+            z = tuple(subtree[x] + subtree[y])
+            i, j = index[tuple(subtree[x])], index[tuple(subtree[y])]
+            Z.append([i, j, float(len(subtree[n])), len(z)]) # <-- float is required by the dendrogram function
+            index[z] = k
+            subtree[z] = list(z)
+            x = z
+            k += 1
 
-    # # Visualize
-    # dendrogram(Z, labels=leaves)
-    # plt.show()
-
+    # Visualize
+    dendrogram(Z, labels=leaves)
+    plt.show()
 
 data = prepare_profile()
 clusters = run_hc(data)
-# print(clusters)
-dendrogram = create_dendrogram(clusters)
-draw_dendrogram(dendrogram)
+print(clusters)
+# dendrogram = create_dendrogram(clusters)
+# draw_dendrogram(dendrogram)
+    
+# dendrogram_scipy(clusters)
 
 
 
