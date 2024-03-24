@@ -1,12 +1,14 @@
 import math
 import pandas as pd
+import numpy as np
+from scipy.cluster.hierarchy import dendrogram
+import matplotlib.pyplot as plt
 
 num_of_clusters = 0
 
 # TODO:
-# - solve the closest_cluster nan problem (distance between cluster and all other clusters is nan) or add random cluster pair
+# - solve the closest_cluster nan problem (distance between cluster and all other clusters is nan)
 # - silhouette
-# - make the dendrogram more readable --> make distances more visible
 
 def manhattan_dist(r1, r2):
     # """ Arguments r1 and r2 are lists of numbers """
@@ -170,7 +172,32 @@ class HierarchicalClustering:
         global num_of_clusters
         num_of_clusters = self.index
         return clusters
+      
+    def run_Z(self, data):
+        Z = []
+        names = list(data.keys())
+        clusters = [[name] for name in data.keys()]
+        clusters_dict = {str([name]): index for index, name in enumerate(data.keys())}
+        index = len(data.keys())
 
+        while len(clusters) >= 2:
+            first, second, distance = self.closest_clusters(data, clusters)
+            clusters.remove(first)
+            clusters.remove(second)
+            clusters.append([first, second])
+
+            # Example linkage matrix (replace with your actual data)
+            # Z = np.array([
+            #     [0, 1, 0.5, 2],   # Merge cluster 0 and 1 at distance 0.5, resulting in new cluster 2
+            #     [2, 3, 0.8, 4],   # Merge cluster 2 and 3 at distance 0.8, resulting in new cluster 4
+            #     # ... (more rows representing additional merges)
+            # ])
+
+            clusters_dict[str([first, second])] = index
+            Z.append([clusters_dict[str(first)], clusters_dict[str(second)], distance, index])
+            index += 1
+            
+        return Z, names
 
 def silhouette(el1, clusters, data):
     """
@@ -358,7 +385,7 @@ def prepare_profile():
         
     return data
 
-def run_hc(data):
+def run_hc(data, construct_Z=False):
     def average_linkage_w_euclidean(c1, c2):
         return average_linkage(c1, c2, euclidean_dist)
     
@@ -377,9 +404,13 @@ def run_hc(data):
     def complete_linkage_w_cosine(c1, c2):
         return complete_linkage(c1, c2, cosine_dist)
     
-    hc = HierarchicalClustering(cluster_dist=average_linkage_w_cosine)
 
-    clusters = hc.run(data)
+    if construct_Z:
+        hc = HierarchicalClustering(cluster_dist=average_linkage_w_cosine, return_distances=True)
+        clusters = hc.run_Z(data)
+    else:
+        hc = HierarchicalClustering(cluster_dist=average_linkage_w_cosine)
+        clusters = hc.run(data)
     return clusters
 
 def flatten_clusters(clusters):
@@ -455,128 +486,31 @@ def draw_dendrogram(dendrogram):
             print(col[row], end="")
         print()
 
-def construct_Z_matrix(clusters):
-    # Get all countries in same order as in the clusters
-    flattened = flatten_clusters(clusters)
-
-    # Example linkage matrix (replace with your actual data)
-    # Z = np.array([
-    #     [0, 1, 0.5, 2],   # Merge cluster 0 and 1 at distance 0.5, resulting in new cluster 2
-    #     [2, 3, 0.8, 4],   # Merge cluster 2 and 3 at distance 0.8, resulting in new cluster 4
-    #     # ... (more rows representing additional merges)
-    # ])
-
-    Z = []
-    countries_dict = {}
-    index = 0
-    clusters_str = str(clusters)  
-    for i in range(11, num_of_clusters + 1):
-        splitted = clusters_str.split(str(i))
-        cluster = splitted[1]
-        countries = []
-        for char in cluster.split("'"):
-            if char.split()[0].isalpha():
-                countries.append(char)
-            elif char.split()[0].isnumeric():
-                distance = float(char)
-        
-        first = False
-        if countries[0] not in countries_dict:
-            countries_dict[countries[0]] = index
-            index += 1
-            first = True
-        elif countries[-1] not in countries_dict:
-            countries_dict[countries[-1]] = index
-            index += 1
-
-        if first:
-            Z.append([countries_dict[countries[0]], countries_dict[countries[-1]], distance, index])
-        else:
-            Z.append([countries_dict[countries[0]], countries_dict[countries[-1]], distance, index])
-        index += 1
-
-
-        
-  
-    return Z
-
-def dendrogram_scipy():
-    import numpy as np
-    from scipy.cluster.hierarchy import dendrogram
-    import matplotlib.pyplot as plt
-
-    # Example linkage matrix (replace with your actual data)
-    # Z = np.array([
-    #     [0, 1, 0.5, 2],   # Merge cluster 0 and 1 at distance 0.5, resulting in new cluster 2
-    #     [2, 3, 0.8, 4],   # Merge cluster 2 and 3 at distance 0.8, resulting in new cluster 4
-    #     # ... (more rows representing additional merges)
-    # ])
-
-    Z = construct_Z_matrix(clusters)
+def dendrogram_scipy(Z, names):
+    # Set the nan distances
+    
+    for i in range(len(Z)):
+        if math.isnan(Z[i][2]):
+            Z[i][2] = Z[i-1][2] * 1.02
 
     # Plot the dendrogram
     plt.figure(figsize=(8, 6))
-    dendrogram(Z)
-    plt.title("Hierarchical Clustering Dendrogram")
-    plt.xlabel("Data Points")
+    dendrogram(Z, labels=names)
+    plt.title("Eurovison voting")
+    plt.xlabel("Country")
     plt.ylabel("Distance")
     plt.show()
 
-def dendrogram_scipy_2():
-        # Load required modules
-    import networkx as nx
-    import matplotlib.pyplot as plt
-    from scipy.cluster.hierarchy import dendrogram
-
-    # Construct the graph/hierarchy
-    d           = { 0: [1, 'd'], 1: ['a', 'b', 'c'], 'a': [], 'b': [], 'c': [], 'd': []}
-    G           = nx.DiGraph(d)
-    nodes       = G.nodes()
-    leaves      = set( n for n in nodes if G.out_degree(n) == 0 )
-    inner_nodes = [ n for n in nodes if G.out_degree(n) > 0 ]
-
-    # Compute the size of each subtree
-    subtree = dict( (n, [n]) for n in leaves )
-    for u in inner_nodes:
-        children = set()
-        node_list = list(d[u])
-        while len(node_list) > 0:
-            v = node_list.pop(0)
-            children.add( v )
-            node_list += d[v]
-
-        subtree[u] = sorted(children & leaves)
-
-    inner_nodes.sort(key=lambda n: len(subtree[n])) # <-- order inner nodes ascending by subtree size, root is last
-
-    # Construct the linkage matrix
-    leaves = sorted(leaves)
-    index  = dict( (tuple([n]), i) for i, n in enumerate(leaves) )
-    Z = []
-    k = len(leaves)
-    for i, n in enumerate(inner_nodes):
-        children = d[n]
-        x = children[0]
-        for y in children[1:]:
-            z = tuple(subtree[x] + subtree[y])
-            i, j = index[tuple(subtree[x])], index[tuple(subtree[y])]
-            Z.append([i, j, float(len(subtree[n])), len(z)]) # <-- float is required by the dendrogram function
-            index[z] = k
-            subtree[z] = list(z)
-            x = z
-            k += 1
-
-    # Visualize
-    dendrogram(Z, labels=leaves)
-    plt.show()
 
 data = prepare_profile()
+
 clusters = run_hc(data)
 print(clusters)
-# dendrogram = create_dendrogram(clusters)
-# draw_dendrogram(dendrogram)
-    
-# dendrogram_scipy(clusters)
+dendrogram = create_dendrogram(clusters)
+draw_dendrogram(dendrogram)
+
+Z, names = run_hc(data, construct_Z=True)
+dendrogram_scipy(Z, names)
 
 
 
