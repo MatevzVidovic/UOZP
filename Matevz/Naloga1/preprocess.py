@@ -155,7 +155,7 @@ for edition, data_np in acc_edition2data_np.items():
         if not math.isnan(points):
             constructed_data.loc[from_country, to_country_and_edition_pair] = points
 
-print("preprocessed.csv:")
+
 print(constructed_data)
 
 constructed_data.to_csv("preprocessed.csv", index=False)
@@ -189,8 +189,5 @@ for edition, data_np in acc_edition2data_np.items():
 
 # save this to a file
 from_count_voted_in_edition.to_csv("from_count_voted_in_edition.csv")
-print("from_count_voted_in_edition.csv:")
-print(from_count_voted_in_edition)
-
 
     

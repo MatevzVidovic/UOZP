@@ -18,16 +18,11 @@ from_count_voted_in_edition = pd.read_csv("from_count_voted_in_edition.csv")
 # make countries the index
 from_count_voted_in_edition.set_index("Unnamed: 0", inplace=True)
 
+# print("from_count_voted_in_edition")
+# print(from_count_voted_in_edition)
 
 
-print("from_count_voted_in_edition:")
-print(from_count_voted_in_edition)
-
-print("preprocessed.csv:")
-print(constructed_data)
-
-print("\n" * 5)
-
+# print(constructed_data)
 
 # find all rows which are all zeros and get a list of their row ixs
 all_nan_rows_ixs = np.all(constructed_data_df.isnull().values, axis=1)
@@ -146,7 +141,7 @@ print("constructed_data_pd.columns")
 print(constructed_data_pd.columns)
 
 
-print("constructed_data.csv:")
+print("constructed_data_pd")
 print(constructed_data_pd)
 constructed_data_pd.to_csv("constructed_data.csv")
 
