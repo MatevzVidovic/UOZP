@@ -1,6 +1,7 @@
 
 import numpy as np
 import pandas as pd
+import math
 
 
 
@@ -18,28 +19,45 @@ from_count_voted_in_edition = pd.read_csv("from_count_voted_in_edition.csv")
 # make countries the index
 from_count_voted_in_edition.set_index("Unnamed: 0", inplace=True)
 
-# print("from_count_voted_in_edition")
-# print(from_count_voted_in_edition)
 
 
-# print(constructed_data)
+print("from_count_voted_in_edition:")
+print(from_count_voted_in_edition)
 
-# find all rows which are all zeros and get a list of their row ixs
-all_nan_rows_ixs = np.all(constructed_data_df.isnull().values, axis=1)
-# print("all_nan_rows_ixs")
-# print(all_nan_rows_ixs)
+print("preprocessed.csv:")
+print(constructed_data)
 
-# remove these rows
-constructed_data = constructed_data[~all_nan_rows_ixs]
-row_labels = row_labels[~all_nan_rows_ixs]
-from_count_voted_in_edition = from_count_voted_in_edition[~all_nan_rows_ixs]
+print("\n" * 5)
 
 
-# print("after zero removal")
-# print("row_labels.T")
-# print(row_labels.T)
-# print("from_count_voted_in_edition")
-# print(from_count_voted_in_edition)
+
+
+
+
+
+
+
+# make_into_reasonable_index
+def ind(np_array_of_strings):
+    new = []
+    for i in np_array_of_strings:
+        new.append(i[0])
+    return new
+
+
+
+# final constructed_data to pd with row and col labels
+before_serbia_data_pd = pd.DataFrame(constructed_data, index=ind(row_labels), columns=ind(col_labels))
+# keep only Serbia, Yugoslavia, and Serbia & Montenegro in the pd
+
+before_serbia_data_pd.loc[["Serbia", "Yugoslavia", "Serbia & Montenegro"],:].to_csv("before_serbia_data.csv")
+# before_serbia_data_pd.to_csv("before_serbia_data.csv")
+
+
+
+
+
+
 
 
 
@@ -59,13 +77,25 @@ clash = clash_pd_row.any()
 # print(clash)
 
 if not clash:
+    print("Serbia, Yugo, Serb and Montenegro never voted together")
     # Join the votes to Serbia
     from_count_voted_in_edition.loc["Serbia"] = from_count_voted_in_edition.loc["Serbia"] | from_count_voted_in_edition.loc["Yugoslavia"] | from_count_voted_in_edition.loc["Serbia & Montenegro"]
     
     serbia_ix = list(row_labels).index("Serbia")
     yugoslavia_ix = list(row_labels).index("Yugoslavia")
     serbia_and_montenegro_ix = list(row_labels).index("Serbia & Montenegro")
-    constructed_data[serbia_ix] = constructed_data[serbia_ix] + constructed_data[yugoslavia_ix] + constructed_data[serbia_and_montenegro_ix]
+
+    length = constructed_data[serbia_ix].size
+    for i in range(length):
+        sum = 0
+        if not math.isnan(constructed_data[serbia_ix][i]):
+            sum += constructed_data[serbia_ix][i]
+        if not math.isnan(constructed_data[yugoslavia_ix][i]):
+            sum += constructed_data[yugoslavia_ix][i]
+        if not math.isnan(constructed_data[serbia_and_montenegro_ix][i]):
+            sum += constructed_data[serbia_and_montenegro_ix][i]
+
+        constructed_data[serbia_ix][i] = sum
 
     # Remove the rows of Yugoslavia and Serbia and Montenegro
     row_ixs_to_remove = [yugoslavia_ix, serbia_and_montenegro_ix]
@@ -97,12 +127,22 @@ clash = clash_pd_row.any()
 # print(clash)
 
 if not clash:
+    print("North Macedonia and F.Y.R. Macedonia never voted together")
     # do the same for North Macedonia and F.Y.R. Macedonia
     from_count_voted_in_edition.loc["North Macedonia"] = from_count_voted_in_edition.loc["North Macedonia"] | from_count_voted_in_edition.loc["F.Y.R. Macedonia"]
 
     north_macedonia_ix = list(row_labels).index("North Macedonia")
     fyr_macedonia_ix = list(row_labels).index("F.Y.R. Macedonia")
-    constructed_data[north_macedonia_ix] = constructed_data[north_macedonia_ix] + constructed_data[fyr_macedonia_ix]
+
+    length = constructed_data[north_macedonia_ix].size
+    for i in range(length):
+        sum = 0
+        if not math.isnan(constructed_data[north_macedonia_ix][i]):
+            sum += constructed_data[north_macedonia_ix][i]
+        if not math.isnan(constructed_data[fyr_macedonia_ix][i]):
+            sum += constructed_data[fyr_macedonia_ix][i]
+
+        constructed_data[north_macedonia_ix][i] = sum
 
     # Remove the row of F.Y.R. Macedonia
     row_ixs_to_remove = [fyr_macedonia_ix]
@@ -117,23 +157,63 @@ if not clash:
 
 
 
-# print("After duplicate merging")
+print("After duplicate merging")
+print("constructed_data.shape")
+print(constructed_data.shape)
+# print("row_labels.T")
+# print(row_labels.T)
+# print("from_count_voted_in_edition")
+# print(from_count_voted_in_edition)
+
+# print("constructed_data after duplicate removal:")
+# print(constructed_data)
+
+
+
+
+
+
+
+"""
+I moved this here, so I can split the analysis in 5 year periods at the start of the pipeline,
+and above countries don't fall off the map prematurely, causing errors"""
+
+# # find all rows which are all zeros and get a list of their row ixs
+# all_nan_rows_ixs = np.all(constructed_data_df.isnull().values, axis=1)
+
+# find if all elements in a row are null in constructed_data
+all_nan_rows_ixs = np.all(np.isnan(constructed_data), axis=1)
+
+# print("all_nan_rows_ixs")
+# print(all_nan_rows_ixs)
+
+# remove these rows
+constructed_data = constructed_data[~all_nan_rows_ixs]
+row_labels = row_labels[~all_nan_rows_ixs]
+from_count_voted_in_edition = from_count_voted_in_edition[~all_nan_rows_ixs]
+
+
+print("after zero removal")
+print("constructed_data.shape")
+print(constructed_data.shape)
 # print("row_labels.T")
 # print(row_labels.T)
 # print("from_count_voted_in_edition")
 # print(from_count_voted_in_edition)
 
 
-print("final constructed_data:")
-print(constructed_data)
 
 
-# make_into_reasonable_index
-def ind(np_array_of_strings):
-    new = []
-    for i in np_array_of_strings:
-        new.append(i[0])
-    return new
+
+
+
+
+
+
+
+
+
+
     
 # final constructed_data to pd with row and col labels
 constructed_data_pd = pd.DataFrame(constructed_data, index=ind(row_labels), columns=ind(col_labels))
@@ -141,7 +221,7 @@ print("constructed_data_pd.columns")
 print(constructed_data_pd.columns)
 
 
-print("constructed_data_pd")
+print("constructed_data.csv:")
 print(constructed_data_pd)
 constructed_data_pd.to_csv("constructed_data.csv")
 

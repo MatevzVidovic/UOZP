@@ -168,7 +168,7 @@ class HierarchicalClustering:
         """
         Return the closest pair of clusters and their distance.
         """
-        closestClustersIxs = [0,0]
+        closestClustersIxs = None
         closestDist = float("inf")
 
 
@@ -188,6 +188,35 @@ class HierarchicalClustering:
                 if not math.isnan(currDist) and currDist < closestDist:
                     closestDist = currDist
                     closestClustersIxs = [ixFirst, ixSecond]
+        
+
+
+        if closestClustersIxs is None:
+            # 3D list.   [cluster_ix][key_ix][key_value]
+            data_clusters_lists_of_lists = []
+            for curr_clust in clusters:
+                curr_cluster_keys = self.list_of_keys_from_tree_of_lists(curr_clust)
+                curr_data = [data[key] for key in curr_cluster_keys]
+                data_clusters_lists_of_lists.append(curr_data)
+            # print("data_clusters_lists_of_lists")
+            # print(data_clusters_lists_of_lists)
+
+            for ixFirst in range(len(data_clusters_lists_of_lists)):
+                for ixSecond in range(ixFirst+1, len(data_clusters_lists_of_lists)):
+                    first_cluster = data_clusters_lists_of_lists[ixFirst]
+                    second_cluster = data_clusters_lists_of_lists[ixSecond]
+                    print("first_cluster")
+                    print(first_cluster)
+                    print("second_cluster")
+                    print(second_cluster)
+                    currDist = self.cluster_dist(first_cluster, second_cluster)
+                    print("currDist")
+                    print(currDist)
+                    
+                    if not math.isnan(currDist) and currDist < closestDist:
+                        closestDist = currDist
+                        closestClustersIxs = [ixFirst, ixSecond]
+            
 
         
         first = clusters[closestClustersIxs[0]]
@@ -211,14 +240,31 @@ class HierarchicalClustering:
             first, second, dist = self.closest_clusters(data, clusters)
             # update the "clusters" variable
 
+
             if self.return_distances:
                 new_cluster = [first, second, dist]
             else:
                 new_cluster = [first, second]
+
+            print("\n" * 5)
+
+            print("clusters")
+            print(clusters)
+            
+            print("first")
+            print(first)
+            print("second")
+            print(second)
             clusters.remove(first)
             clusters.remove(second)
             clusters.append(new_cluster)
             
+            print("\n" * 5)
+            
+            print("next clusters")
+            print(clusters)
+            
+
         return clusters
 
 
