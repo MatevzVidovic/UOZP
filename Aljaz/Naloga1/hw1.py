@@ -6,10 +6,6 @@ import matplotlib.pyplot as plt
 
 num_of_clusters = 0
 
-# TODO:
-# - solve the closest_cluster nan problem (distance between cluster and all other clusters is nan)
-# - silhouette
-
 def manhattan_dist(r1, r2):
     # """ Arguments r1 and r2 are lists of numbers """
     count_nan = 0
@@ -125,7 +121,7 @@ class HierarchicalClustering:
         for cluster in clusters:
             cluster_values = []
             for char in str(cluster).split("'"):
-                if char.isalpha():
+                if char[0].isalpha():
                     cluster_values.append(data[char])
             values.append(cluster_values)
 
@@ -281,29 +277,27 @@ def prepare_profile():
 
 
     # JUST TELEVOTING
-    
+    # ''' 
     # Calculate average points for each pair of From country and To country
     df_televoting_avg = df_televoting.groupby(["From country", "To country"]).mean()
     # df_televoting_avg.to_excel("eurovision_song_contest_2016_2023_avg.xlsx")
 
     # Count how many times each pair of From country and To country voted
-    # df_televoting_cnt = df_televoting.groupby(["From country", "To country"]).count()
+    df_televoting_cnt = df_televoting.groupby(["From country", "To country"]).count()
     # df_televoting_cnt.to_excel("eurovision_song_contest_2016_2023_cnt.xlsx")
 
     # Make a matrix: From country are the names of the rows and To country are the names of the columns
     df_televoting_avg = df_televoting_avg.unstack(level=-1)
 
-    # # Go over all values: if From country and To country are the same, set the distance to nan; else if the value is nan, set it to 0
-    # for i in range(len(df_televoting_avg)):
-    #     for j in range(len(df_televoting_avg.columns)):
-    #         if df_televoting_avg.index[i] == df_televoting_avg.columns[j]:
-    #             df_televoting_avg.iat[i, j] = math.nan
-    #         elif math.isnan(df_televoting_avg.iat[i, j]):
-    #             df_televoting_avg.iat[i, j] = 0
+    # Go over all values: if From country and To country are the same, set the distance to nan; else if the value is nan, set it to 0
+    for i in range(len(df_televoting_avg)):
+        for j in range(len(df_televoting_avg.columns)):
+            if df_televoting_avg.index[i] == df_televoting_avg.columns[j]:
+                df_televoting_avg.iat[i, j] = math.nan
+            elif math.isnan(df_televoting_avg.iat[i, j]):
+                df_televoting_avg.iat[i, j] = 0
 
-    # # Fill NaN values with 0 --> countries that didn't vote for each other have distance 0 and we also solve the diagonal problem
-    # df_televoting_avg = df_televoting_avg.fillna(0)
-    # df_televoting_avg.to_excel("eurovision_song_contest_2016_2023_matrix.xlsx")
+    # df_televoting_cnt.to_excel("eurovision_song_contest_2016_2023_matrix.xlsx")
 
     # Make a dict from the dataframe with From country as the key and values as a list of distances to To countries
     df_televoting_avg.columns = df_televoting_avg.columns.droplevel()
@@ -312,17 +306,13 @@ def prepare_profile():
     data = df_televoting_avg.to_dict()
     for key in data:
         data[key] = list(data[key].values())
-    
-
+    # ''' 
+        
     # JUST JURY
     '''
     # Calculate average points for each pair of From country and To country
     df_jury_avg = df_jury.groupby(["From country", "To country"]).mean()
     # df_jury_avg.to_excel("eurovision_song_contest_2016_2023_avg.xlsx")
-
-    # Count how many times each pair of From country and To country voted
-    # df_jury_cnt = df_jury.groupby(["From country", "To country"]).count()
-    # df_televoting_cnt.to_excel("eurovision_song_contest_2016_2023_cnt.xlsx")
 
     # Make a matrix: From country are the names of the rows and To country are the names of the columns
     df_jury_avg = df_jury_avg.unstack(level=-1)
@@ -334,10 +324,6 @@ def prepare_profile():
     #             df_jury_avg.iat[i, j] = math.nan
     #         elif math.isnan(df_jury_avg.iat[i, j]):
     #             df_jury_avg.iat[i, j] = 0
-
-    # # Fill NaN values with 0 --> countries that didn't vote for each other have distance 0 and we also solve the diagonal problem
-    # df_jury_avg = df_jury_avg.fillna(0)
-    # df_jury_avg.to_excel("eurovision_song_contest_2016_2023_matrix.xlsx")
 
     # Make a dict from the dataframe with From country as the key and values as a list of distances to To countries
     df_jury_avg.columns = df_jury_avg.columns.droplevel()
@@ -355,10 +341,6 @@ def prepare_profile():
     df_after_2016_avg = df_jury.groupby(["From country", "To country"]).mean()
     # df_after_2016_avg.to_excel("eurovision_song_contest_2016_2023_avg.xlsx")
 
-    # Count how many times each pair of From country and To country voted
-    # df_jury_cnt = df_jury.groupby(["From country", "To country"]).count()
-    # df_televoting_cnt.to_excel("eurovision_song_contest_2016_2023_cnt.xlsx")
-
     # Make a matrix: From country are the names of the rows and To country are the names of the columns
     df_after_2016_avg = df_after_2016_avg.unstack(level=-1)
 
@@ -369,10 +351,6 @@ def prepare_profile():
     #             df_after_2016_avg.iat[i, j] = math.nan
     #         elif math.isnan(df_after_2016_avg.iat[i, j]):
     #             df_after_2016_avg.iat[i, j] = 0
-
-    # # Fill NaN values with 0 --> countries that didn't vote for each other have distance 0 and we also solve the diagonal problem
-    # df_after_2016_avg = df_after_2016_avg.fillna(0)
-    # df_after_2016_avg.to_excel("eurovision_song_contest_2016_2023_matrix.xlsx")
 
     # Make a dict from the dataframe with From country as the key and values as a list of distances to To countries
     df_after_2016_avg.columns = df_after_2016_avg.columns.droplevel()
@@ -477,7 +455,9 @@ def create_dendrogram(clusters):
         
     return dendrogram
 
-def draw_dendrogram(dendrogram):
+def draw_dendrogram(clusters):
+    dendrogram = create_dendrogram(clusters)
+
     for row in range(len(dendrogram[0])):
         if dendrogram[0][row] == "Bosnia & Herzegovina":
             dendrogram[0][row] = "B&H"
@@ -487,28 +467,22 @@ def draw_dendrogram(dendrogram):
         print()
 
 def dendrogram_scipy(Z, names):
-    # Set the nan distances
-    
-    for i in range(len(Z)):
-        if math.isnan(Z[i][2]):
-            Z[i][2] = Z[i-1][2] * 1.02
 
-    # Plot the dendrogram
     plt.figure(figsize=(8, 6))
     dendrogram(Z, labels=names)
-    plt.title("Eurovison voting")
+    plt.title("Eurovison voting since 2016 - televoting (average linkage with cosine distance)")
     plt.xlabel("Country")
     plt.ylabel("Distance")
     plt.show()
 
-
+# Prepare the data
 data = prepare_profile()
 
-clusters = run_hc(data)
-print(clusters)
-dendrogram = create_dendrogram(clusters)
-draw_dendrogram(dendrogram)
+# Draw dendrogram in a terminal
+# clusters = run_hc(data)
+# dendrogram(clusters)
 
+# Draw dendrogram with scipy package
 Z, names = run_hc(data, construct_Z=True)
 dendrogram_scipy(Z, names)
 
