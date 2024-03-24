@@ -275,6 +275,7 @@ def prepare_profile():
     df_televoting = df_televoting.drop(columns=["Jury or Televoting"])
     df_before_2016 = df_before_2016.drop(columns=["Jury or Televoting"])
 
+    # df_televoting.to_excel("eurovision_song_contest_2016_2023.xlsx")
 
     # JUST TELEVOTING
     # ''' 
@@ -297,8 +298,12 @@ def prepare_profile():
             elif math.isnan(df_televoting_avg.iat[i, j]):
                 df_televoting_avg.iat[i, j] = 0
 
-    # df_televoting_cnt.to_excel("eurovision_song_contest_2016_2023_matrix.xlsx")
-
+    # df_televoting_avg.to_excel("eurovision_song_contest_2016_2023_matrix.xlsx")
+                
+    # Get top five countries that country voted higest points to
+    # country = "Slovenia"
+    # print(df_televoting_avg.loc[country].sort_values(ascending=False).head(5))
+                
     # Make a dict from the dataframe with From country as the key and values as a list of distances to To countries
     df_televoting_avg.columns = df_televoting_avg.columns.droplevel()
     # Transpose the dataframe for correct data structure
@@ -360,7 +365,7 @@ def prepare_profile():
     for key in data:
         data[key] = list(data[key].values())
     '''
-        
+    
     return data
 
 def run_hc(data, construct_Z=False):
