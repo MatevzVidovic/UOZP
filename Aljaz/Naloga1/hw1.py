@@ -2,10 +2,11 @@ import math
 import pandas as pd
 
 num_of_clusters = 0
+
 # TODO:
-# - solve the closest_cluster nan problem (distance between cluster and all other clusters is nan)
-# - try diferent linkage methods and distance computations
-# - try different data preprocessing
+# - solve the closest_cluster nan problem (distance between cluster and all other clusters is nan) or add random cluster pair
+# - silhouette
+# - make the dendrogram more readable --> make distances more visible
 
 def manhattan_dist(r1, r2):
     # """ Arguments r1 and r2 are lists of numbers """
@@ -210,6 +211,7 @@ def silhouette_average(data, clusters):
 
 def prepare_profile():
     df = pd.read_excel("eurovision_song_contest_1957_2023.xlsx")
+
     # Rename "Points      " column to "Points"
     df = df.rename(columns={"Points      ": "Points"})
 
@@ -225,8 +227,18 @@ def prepare_profile():
     # Delete "(semi-) final" column
     df = df.drop(columns=["(semi-) final"])
 
-    # Delete rows with To country "Rest of the World" - not enough data
-    df = df[df["To country"] != "Rest of the World"]
+    # Delete rows with From country "Rest of the World" - not enough data
+    df = df[df["From country"] != "Rest of the World"]
+
+    # Change all "Bosnia & Herzegovina" to "B&H"
+    # df["From country"] = df["From country"].replace("Bosnia & Herzegovina", "B&H")
+    # df["To country"] = df["To country"].replace("Bosnia & Herzegovina", "B&H")
+
+    # Change all "F.Y.R. Macedonia" to "North Macedonia"
+    df["From country"] = df["From country"].replace("F.Y.R. Macedonia", "North Macedonia")
+    df["To country"] = df["To country"].replace("F.Y.R. Macedonia", "North Macedonia")
+
+    # Bosnia and Herzegovina and Montenegro didn't get to the finals from 2016 to 2023 
 
     # In 2016 voting system changed, from mixed system to two separate systems: jury and televoting and delete the column "Year"
     df_before_2016 = df[df.Year <= 2016]
@@ -240,25 +252,110 @@ def prepare_profile():
     df_televoting = df_televoting.drop(columns=["Jury or Televoting"])
     df_before_2016 = df_before_2016.drop(columns=["Jury or Televoting"])
 
+
+    # JUST TELEVOTING
+    
     # Calculate average points for each pair of From country and To country
     df_televoting_avg = df_televoting.groupby(["From country", "To country"]).mean()
     # df_televoting_avg.to_excel("eurovision_song_contest_2016_2023_avg.xlsx")
 
     # Count how many times each pair of From country and To country voted
-    df_televoting_cnt = df_televoting.groupby(["From country", "To country"]).count()
+    # df_televoting_cnt = df_televoting.groupby(["From country", "To country"]).count()
     # df_televoting_cnt.to_excel("eurovision_song_contest_2016_2023_cnt.xlsx")
 
     # Make a matrix: From country are the names of the rows and To country are the names of the columns
     df_televoting_avg = df_televoting_avg.unstack(level=-1)
+
+    # # Go over all values: if From country and To country are the same, set the distance to nan; else if the value is nan, set it to 0
+    # for i in range(len(df_televoting_avg)):
+    #     for j in range(len(df_televoting_avg.columns)):
+    #         if df_televoting_avg.index[i] == df_televoting_avg.columns[j]:
+    #             df_televoting_avg.iat[i, j] = math.nan
+    #         elif math.isnan(df_televoting_avg.iat[i, j]):
+    #             df_televoting_avg.iat[i, j] = 0
+
+    # # Fill NaN values with 0 --> countries that didn't vote for each other have distance 0 and we also solve the diagonal problem
     # df_televoting_avg = df_televoting_avg.fillna(0)
     # df_televoting_avg.to_excel("eurovision_song_contest_2016_2023_matrix.xlsx")
 
     # Make a dict from the dataframe with From country as the key and values as a list of distances to To countries
     df_televoting_avg.columns = df_televoting_avg.columns.droplevel()
+    # Transpose the dataframe for correct data structure
+    df_televoting_avg = df_televoting_avg.transpose()
     data = df_televoting_avg.to_dict()
     for key in data:
         data[key] = list(data[key].values())
     
+
+    # JUST JURY
+    '''
+    # Calculate average points for each pair of From country and To country
+    df_jury_avg = df_jury.groupby(["From country", "To country"]).mean()
+    # df_jury_avg.to_excel("eurovision_song_contest_2016_2023_avg.xlsx")
+
+    # Count how many times each pair of From country and To country voted
+    # df_jury_cnt = df_jury.groupby(["From country", "To country"]).count()
+    # df_televoting_cnt.to_excel("eurovision_song_contest_2016_2023_cnt.xlsx")
+
+    # Make a matrix: From country are the names of the rows and To country are the names of the columns
+    df_jury_avg = df_jury_avg.unstack(level=-1)
+
+    # # Go over all values: if From country and To country are the same, set the distance to nan; else if the value is nan, set it to 0
+    # for i in range(len(df_jury_avg)):
+    #     for j in range(len(df_jury_avg.columns)):
+    #         if df_jury_avg.index[i] == df_jury_avg.columns[j]:
+    #             df_jury_avg.iat[i, j] = math.nan
+    #         elif math.isnan(df_jury_avg.iat[i, j]):
+    #             df_jury_avg.iat[i, j] = 0
+
+    # # Fill NaN values with 0 --> countries that didn't vote for each other have distance 0 and we also solve the diagonal problem
+    # df_jury_avg = df_jury_avg.fillna(0)
+    # df_jury_avg.to_excel("eurovision_song_contest_2016_2023_matrix.xlsx")
+
+    # Make a dict from the dataframe with From country as the key and values as a list of distances to To countries
+    df_jury_avg.columns = df_jury_avg.columns.droplevel()
+    # Transpose the dataframe for correct data structure
+    df_jury_avg = df_jury_avg.transpose()
+    data = df_jury_avg.to_dict()
+    for key in data:
+        data[key] = list(data[key].values())
+    '''
+
+    # JURY AND TELEVOTING
+    '''
+    df_after_2016 = df_after_2016.drop(columns=["Jury or Televoting"])
+    # Calculate average points for each pair of From country and To country
+    df_after_2016_avg = df_jury.groupby(["From country", "To country"]).mean()
+    # df_after_2016_avg.to_excel("eurovision_song_contest_2016_2023_avg.xlsx")
+
+    # Count how many times each pair of From country and To country voted
+    # df_jury_cnt = df_jury.groupby(["From country", "To country"]).count()
+    # df_televoting_cnt.to_excel("eurovision_song_contest_2016_2023_cnt.xlsx")
+
+    # Make a matrix: From country are the names of the rows and To country are the names of the columns
+    df_after_2016_avg = df_after_2016_avg.unstack(level=-1)
+
+    # # Go over all values: if From country and To country are the same, set the distance to nan; else if the value is nan, set it to 0
+    # for i in range(len(df_after_2016_avg)):
+    #     for j in range(len(df_after_2016_avg.columns)):
+    #         if df_after_2016_avg.index[i] == df_after_2016_avg.columns[j]:
+    #             df_after_2016_avg.iat[i, j] = math.nan
+    #         elif math.isnan(df_after_2016_avg.iat[i, j]):
+    #             df_after_2016_avg.iat[i, j] = 0
+
+    # # Fill NaN values with 0 --> countries that didn't vote for each other have distance 0 and we also solve the diagonal problem
+    # df_after_2016_avg = df_after_2016_avg.fillna(0)
+    # df_after_2016_avg.to_excel("eurovision_song_contest_2016_2023_matrix.xlsx")
+
+    # Make a dict from the dataframe with From country as the key and values as a list of distances to To countries
+    df_after_2016_avg.columns = df_after_2016_avg.columns.droplevel()
+    # Transpose the dataframe for correct data structure
+    df_after_2016_avg = df_after_2016_avg.transpose()
+    data = df_after_2016_avg.to_dict()
+    for key in data:
+        data[key] = list(data[key].values())
+    '''
+        
     return data
 
 def run_hc(data):
@@ -353,6 +450,8 @@ def create_dendrogram(clusters):
 
 def draw_dendrogram(dendrogram):
     for row in range(len(dendrogram[0])):
+        if dendrogram[0][row] == "Bosnia & Herzegovina":
+            dendrogram[0][row] = "B&H"
         print(f'{dendrogram[0][row]:<15}', end="")
         for col in dendrogram[1:]:
             print(col[row], end="")
@@ -431,7 +530,6 @@ clusters = run_hc(data)
 # print(clusters)
 dendrogram = create_dendrogram(clusters)
 draw_dendrogram(dendrogram)
-# dendrogram_scipy()
 
 
 
