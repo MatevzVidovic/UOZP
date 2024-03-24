@@ -3,8 +3,9 @@ import pandas as pd
 import numpy as np
 from scipy.cluster.hierarchy import dendrogram
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
-num_of_clusters = 0
+clusters_num = 0
 
 def manhattan_dist(r1, r2):
     # """ Arguments r1 and r2 are lists of numbers """
@@ -165,8 +166,8 @@ class HierarchicalClustering:
                 clusters.append([first, second, distance])
             else:
                 clusters.append([distance, first, second, distance])
-        global num_of_clusters
-        num_of_clusters = self.index
+        global clusters_num
+        clusters_num = self.index
         return clusters
       
     def run_Z(self, data):
@@ -175,6 +176,9 @@ class HierarchicalClustering:
         clusters = [[name] for name in data.keys()]
         clusters_dict = {str([name]): index for index, name in enumerate(data.keys())}
         index = len(data.keys())
+
+        # Needed for silhouette
+        all_clusters = [clusters.copy()]
 
         while len(clusters) >= 2:
             first, second, distance = self.closest_clusters(data, clusters)
@@ -192,8 +196,10 @@ class HierarchicalClustering:
             clusters_dict[str([first, second])] = index
             Z.append([clusters_dict[str(first)], clusters_dict[str(second)], distance, index])
             index += 1
+
+            all_clusters.append(clusters.copy())
             
-        return Z, names
+        return Z, names, all_clusters
 
 def silhouette(el1, clusters, data):
     """
@@ -207,7 +213,7 @@ def silhouette(el1, clusters, data):
         dist = 0
         for el2 in cluster:
             if el1 != el2:
-                dist += euclidean_dist(data[el1], data[el2])
+                dist += cosine_dist(data[el1], data[el2])
         
         if el1 in cluster:
             if len(cluster) > 1:
@@ -225,9 +231,13 @@ def silhouette_average(data, clusters):
     Za podane podatke (slovar vektorjev) in skupine (seznam seznamov nizov:
     ključev v slovarju data) vrni povprečno silhueto.
     """
+    flattened_clusters = []
+    for cluster in clusters:
+        flattened_clusters.append(flatten_clusters(cluster))
+
     silhouette_sum = 0
     for el in data:
-        silhouette_sum += silhouette(el, clusters, data)
+        silhouette_sum += silhouette(el, flattened_clusters, data)
 
     return silhouette_sum / len(data)
 
@@ -252,10 +262,6 @@ def prepare_profile():
 
     # Delete rows with From country "Rest of the World" - not enough data
     df = df[df["From country"] != "Rest of the World"]
-
-    # Change all "Bosnia & Herzegovina" to "B&H"
-    # df["From country"] = df["From country"].replace("Bosnia & Herzegovina", "B&H")
-    # df["To country"] = df["To country"].replace("Bosnia & Herzegovina", "B&H")
 
     # Change all "F.Y.R. Macedonia" to "North Macedonia"
     df["From country"] = df["From country"].replace("F.Y.R. Macedonia", "North Macedonia")
@@ -311,6 +317,14 @@ def prepare_profile():
     data = df_televoting_avg.to_dict()
     for key in data:
         data[key] = list(data[key].values())
+    
+    # normalize the data
+    # for key in data:
+    #     max_value = max(data[key])
+    #     for i in range(len(data[key])):
+    #         data[key][i] = data[key][i] / max_value
+
+
     # ''' 
         
     # JUST JURY
@@ -389,7 +403,7 @@ def run_hc(data, construct_Z=False):
     
 
     if construct_Z:
-        hc = HierarchicalClustering(cluster_dist=average_linkage_w_cosine, return_distances=True)
+        hc = HierarchicalClustering(cluster_dist=complete_linkage_w_cosine, return_distances=True)
         clusters = hc.run_Z(data)
     else:
         hc = HierarchicalClustering(cluster_dist=average_linkage_w_cosine)
@@ -421,7 +435,7 @@ def create_dendrogram(clusters):
     dendrogram = [flattened]
 
     clusters_str = str(clusters)  
-    for i in range(11, num_of_clusters + 1):
+    for i in range(11, clusters_num + 1):
         # Get countries in the next cluster
         splitted = clusters_str.split(str(i))
         cluster = splitted[1]
@@ -471,13 +485,95 @@ def draw_dendrogram(clusters):
             print(col[row], end="")
         print()
 
+def best_silhoutte(all_clusters, data):
+    # find best number of clusters with silhouette
+    best_silhouette = 0
+    
+    for clusters in all_clusters:
+        silhouette_avg = silhouette_average(data, clusters)
+        if silhouette_avg > best_silhouette:
+            best_silhouette = silhouette_avg
+            best_clusters = clusters
+
+    return len(best_clusters)
+
 def dendrogram_scipy(Z, names):
 
     plt.figure(figsize=(8, 6))
-    dendrogram(Z, labels=names)
-    plt.title("Eurovison voting since 2016 - televoting (average linkage with cosine distance)")
+    dendrogram(Z, labels=names, color_threshold=0.34)
+    plt.title("Eurovison voting since 2016 - televoting (complete linkage with cosine distance)")
     plt.xlabel("Country")
     plt.ylabel("Distance")
+    plt.show()
+
+def silhouette_graph(all_clusters, data, n_clusters=5):
+
+    for cluster in all_clusters:
+        if len(cluster) == n_clusters:
+            clusters = cluster
+            break
+        
+    plt.xlim([-0.1, 1.0])
+        
+    # Inserting blank space between silhouette
+    plt.ylim([0, 44 + (n_clusters + 1) * 10])
+
+    silhouette_avg = silhouette_average(data, clusters)
+
+    sample_silhouette_values = []
+
+    # Flatten indivudal clusters
+    flattened_clusters = []
+    for cluster in clusters:
+        flattened_clusters.append(flatten_clusters(cluster))
+
+    # Calculate silhouette for each element in each cluster
+    for cluster in flattened_clusters:
+        sample_silhouette_values.append([])
+        for el in cluster:
+            sample_silhouette_values[-1].append(silhouette(el, flattened_clusters, data))
+
+    # Aggregate the silhouette scores for samples belonging to cluster i, and sort them
+    y_lower = 10
+    for i in range(n_clusters):
+        ith_cluster_silhouette_values = sample_silhouette_values[i]
+
+        ith_cluster_silhouette_values.sort()
+
+        size_cluster_i = len(sample_silhouette_values[i])
+        y_upper = y_lower + size_cluster_i
+
+        color = cm.nipy_spectral(float(i) / n_clusters)
+
+        # Color all silhouettes in the same cluster
+        # plt.fill_betweenx(
+        #     np.arange(y_lower, y_upper),
+        #     0,
+        #     ith_cluster_silhouette_values,
+        #     facecolor=color,
+        #     edgecolor=color,
+        #     alpha=0.7,
+        # )
+
+        # Plot each silhouette value
+        for j in range(len(ith_cluster_silhouette_values)):
+            plt.plot([0, ith_cluster_silhouette_values[j]], [j + y_lower, j + y_lower], color=color)
+
+        plt.text(-0.05, y_lower + 0.5 * size_cluster_i, str(flattened_clusters[i]))
+
+        # Compute the new y_lower for next plot
+        y_lower = y_upper + 10  # 10 for the 0 samples
+
+    plt.title("Silhouette plot for Eurovision voting since 2016 - televoting (complete linkage with cosine distance)")
+    plt.xlabel("The silhouette coefficient values")
+    # plt.ylabel("Cluster label")
+
+    # The vertical line for average silhouette score of all the values
+    plt.axvline(x=silhouette_avg, color="red", linestyle="--")
+
+    plt.yticks([])  # Clear the yaxis labels / ticks
+    plt.xticks([-0.1, 0, 0.2, 0.4, 0.6, 0.8, 1])
+
     plt.show()
 
 # Prepare the data
@@ -488,8 +584,12 @@ data = prepare_profile()
 # dendrogram(clusters)
 
 # Draw dendrogram with scipy package
-Z, names = run_hc(data, construct_Z=True)
+Z, names, all_clusters = run_hc(data, construct_Z=True)
 dendrogram_scipy(Z, names)
+
+# Calculate silhouette and draw the graph
+# print(best_silhoutte(all_clusters, data))
+silhouette_graph(all_clusters, data, n_clusters=16)
 
 
 
