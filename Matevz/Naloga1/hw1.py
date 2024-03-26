@@ -47,6 +47,40 @@ def euclidean_dist(r1, r2):
     return sum
 
 
+def cosine_dist(r1, r2):
+    from math import sqrt, isnan
+
+    dot_prod_sum = 0
+    r1_squard_L2_norm = 0
+    r2_squard_L2_norm = 0
+
+
+    for ix, first in enumerate(r1):
+        second = r2[ix]
+
+        if math.isnan(first) or math.isnan(second):
+            continue
+        
+        dot_prod_sum += (first * second)
+        r1_squard_L2_norm += first**2
+        r2_squard_L2_norm += second**2
+
+    product_of_lens = sqrt(r1_squard_L2_norm) * sqrt(r2_squard_L2_norm)
+    
+    # this means one of the vectors is a null vector
+    # and this means it is both perpendicular and colinear
+    # with the other vector. So We can choose 0, 1, or -1 as our cosine.
+    # We say they are different, so our cosine is -1.
+    if product_of_lens == 0:
+        cos = -1
+    else:
+        cos = dot_prod_sum / product_of_lens
+
+
+    return 1-cos
+
+
+
 def single_linkage(c1, c2, distance_fn):
     """ Arguments c1 and c2 are 2d lists: [i-th memOfClust][j-th vec value of i-th member]
 
@@ -264,6 +298,8 @@ class HierarchicalClustering:
 
         max_dist = -1e30
 
+        all_cluster_combinations = [clusters.copy()]
+
 
 
         while len(clusters) >= 2:
@@ -301,6 +337,8 @@ class HierarchicalClustering:
 
                 if dist > max_dist:
                     max_dist = dist
+
+                all_cluster_combinations.append(clusters.copy())
             
             if printout:
                 print("\n" * 5)
@@ -309,12 +347,12 @@ class HierarchicalClustering:
                 print(clusters)
             
         if make_scipy_mat:
-            return clusters, scipy_mat, countries, max_dist
+            return clusters, scipy_mat, countries, max_dist, all_cluster_combinations
         
         return clusters
 
 
-def clust_avg_dist(el, single_clust_list, data):
+def clust_avg_dist(el, single_clust_list, data, dist_fn=cosine_dist):
 
     if len(single_clust_list) == 0:
         return 0
@@ -323,11 +361,11 @@ def clust_avg_dist(el, single_clust_list, data):
     
     avg_dist = 0
     for i in single_clust_list:
-        avg_dist += euclidean_dist(data[i], el_vec) / len(single_clust_list)
+        avg_dist += dist_fn(data[i], el_vec) / len(single_clust_list)
     
     return avg_dist
 
-def silhouette(el, clusters, data):
+def silhouette(el, clusters, data, dist_fn=cosine_dist):
     """
     Za element el ob podanih podatkih data (slovar vektorjev) in skupinah
     (seznam seznamov nizov: ključev v slovarju data) vrni silhueto za element el.
@@ -336,20 +374,27 @@ def silhouette(el, clusters, data):
     # print(data)
     # print(clusters)
 
-    el_clust_ix = 0
+    el_clust_ix = None
     for ix, curr_clust in enumerate(clusters):
         if (el in curr_clust):
             el_clust_ix = ix
             break
     
-    el_clust = clusters[el_clust_ix].copy()
-    el_clust.remove(el)
+    try:
+        el_clust = clusters[el_clust_ix].copy()
+        el_clust.remove(el)
+    except:
+        print("SILHOUETTE ERROR: el not in clusters.") 
+        print("el")
+        print(el)
+        print("clusters")
+        print(clusters)
 
     # By definition apparently
     if len(el_clust) <= 0:
         return 0.0
 
-    inner_class_avg_dist = clust_avg_dist(el, el_clust, data)
+    inner_class_avg_dist = clust_avg_dist(el, el_clust, data, dist_fn)
 
 
     min_other_clust_dist = float("inf")
@@ -358,7 +403,7 @@ def silhouette(el, clusters, data):
         if ix == el_clust_ix:
             continue
         
-        dist = clust_avg_dist(el, curr_clust, data)
+        dist = clust_avg_dist(el, curr_clust, data, dist_fn)
         if dist < min_other_clust_dist:
             min_other_clust_dist = dist
     
@@ -370,7 +415,7 @@ def silhouette(el, clusters, data):
     return silhouette
 
 
-def silhouette_average(data, clusters):
+def silhouette_average(data, clusters, dist_fn=cosine_dist):
     """
     Za podane podatke (slovar vektorjev) in skupine (seznam seznamov nizov:
     ključev v slovarju data) vrni povprečno silhueto.
@@ -378,7 +423,7 @@ def silhouette_average(data, clusters):
     cases = list(data.keys())
     avg_silhouette = 0
     for case in cases:
-        avg_silhouette += silhouette(case, clusters, data) / len(cases)
+        avg_silhouette += silhouette(case, clusters, data, dist_fn) / len(cases)
     
     return avg_silhouette
 
@@ -845,37 +890,7 @@ def second_preprocess(printout=False):
 
 
 
-def cosine_dist(r1, r2):
-    from math import sqrt, isnan
 
-    dot_prod_sum = 0
-    r1_squard_L2_norm = 0
-    r2_squard_L2_norm = 0
-
-
-    for ix, first in enumerate(r1):
-        second = r2[ix]
-
-        if math.isnan(first) or math.isnan(second):
-            continue
-        
-        dot_prod_sum += (first * second)
-        r1_squard_L2_norm += first**2
-        r2_squard_L2_norm += second**2
-
-    product_of_lens = sqrt(r1_squard_L2_norm) * sqrt(r2_squard_L2_norm)
-    
-    # this means one of the vectors is a null vector
-    # and this means it is both perpendicular and colinear
-    # with the other vector. So We can choose 0, 1, or -1 as our cosine.
-    # We say they are different, so our cosine is -1.
-    if product_of_lens == 0:
-        cos = -1
-    else:
-        cos = dot_prod_sum / product_of_lens
-
-
-    return 1-cos
 
 
 
@@ -951,7 +966,103 @@ def show_dendrogram(scipy_mat, countries, dist_cutoff, dist_name, linkage_name, 
     plt.show()
 
 
-def naloga1(print_during=False, print_result=False):
+
+
+def list_of_keys_from_tree_of_lists(tree_of_lists):
+        """Returns list of keys.
+        Performs recursively."""
+        
+        if len(tree_of_lists) == 1 and not isinstance(tree_of_lists[0], list):
+            return tree_of_lists
+        
+        curr_list = []
+
+
+        for item in tree_of_lists:
+            if isinstance(item, list):
+                curr_list.extend(list_of_keys_from_tree_of_lists(item))
+        
+        # if not self.return_distances:        
+        #     for i in tree_of_lists:
+        #         curr_list.extend(self.list_of_keys_from_tree_of_lists(i))
+        # else:
+        #     for ix, item in tree_of_lists:
+        #         if (ix+1) != len(tree_of_lists)
+        
+        return curr_list
+
+def show_silhouette(all_cluster_combinations, constructed_data_dict, dist_fn, num_of_clusts=7, printout=False):
+    """
+    all_cluster_combinations: list of lists which are recursive structures of clusters.
+    """
+    chosen_clust_comb = None
+    for curr_clust in all_cluster_combinations:
+        if len(curr_clust) == num_of_clusts:
+            chosen_clust_comb = curr_clust
+            break
+    
+    chosen_clusts_flat = []
+    for clust in chosen_clust_comb:
+        chosen_clusts_flat.append(list_of_keys_from_tree_of_lists(clust))
+
+    silho_for_each_clust = []
+    for curr_clust_list in chosen_clusts_flat:
+        curr_clust_silhos = []
+        for country in curr_clust_list:
+            curr_clust_silhos.append(silhouette(country, chosen_clusts_flat, constructed_data_dict, dist_fn))
+
+        curr_clust_silhos.sort()
+        silho_for_each_clust.append(curr_clust_silhos)
+    
+    
+    if printout:
+        print("chosen_clust_comb")
+        print(chosen_clust_comb)
+        print("chosen_clusts_flat")
+        print(chosen_clusts_flat)
+        print("silho_for_each_clust")
+        print(silho_for_each_clust)
+
+    avg_silho = silhouette_average(constructed_data_dict, chosen_clusts_flat, dist_fn)
+
+
+    import matplotlib.pyplot as plt
+    import matplotlib.cm as cm
+
+
+    plt.xlim([-0.1, 1.0])
+        
+    # Inserting blank space between silhouette
+    plt.ylim([0, 44 + (num_of_clusts + 1) * 10])
+
+    y_lower = 10
+    for ix, curr_clust_flat in enumerate(chosen_clusts_flat):
+
+
+
+        color = cm.nipy_spectral(float(ix) / num_of_clusts)
+
+
+        curr_clust_silhos = silho_for_each_clust[ix]
+        # Plot each silhouette value
+        for j in range(len(curr_clust_silhos)):
+            plt.plot([0, curr_clust_silhos[j]], [j + y_lower, j + y_lower], color=color)
+        
+        y_lower += len(curr_clust_silhos) + 10  # 10 for the 0th silho
+    
+    plt.show()
+    
+
+    
+
+
+
+
+    # print("list_of_keys_from_tree_of_lists(final_clusters)")
+    # print(list_of_keys_from_tree_of_lists(final_clusters))
+
+
+def naloga1(print_during=False, print_result=False, only_testing=False):
 
     import numpy as np
     import pandas as pd
@@ -960,6 +1071,10 @@ def naloga1(print_during=False, print_result=False):
 
     
     constructed_data_df = pd.read_csv("on_the_fly_data/constructed_data.csv")
+
+    if only_testing:
+        constructed_data_df = constructed_data_df.loc[1:15,:]
+    
     constructed_data_df.set_index("Unnamed: 0", inplace=True)
     constructed_data = constructed_data_df.values
 
@@ -1011,44 +1126,50 @@ def naloga1(print_during=False, print_result=False):
 
 
     hc = HierarchicalClustering(cluster_dist=average_linkage_w_cosine, return_distances=True)
-    clusters, scipy_mat, countries, max_dist = hc.run(constructed_data_dict, make_scipy_mat=True)
+    final_clusters, scipy_mat, countries, max_dist, all_cluster_combinations = hc.run(constructed_data_dict, make_scipy_mat=True)
 
     print(max_dist)
 
     show_dendrogram(scipy_mat, countries, 0.5, "Cosine distance", "average linkage", "1992-2023")
 
+    show_silhouette(all_cluster_combinations, constructed_data_dict, cosine_dist, printout=True)
+
     if print_result:
         print("average-cosine clusters")
-        print(clusters)
+        print(final_clusters)
 
 
 
 
     hc = HierarchicalClustering(cluster_dist=wards_method, return_distances=True)
-    clusters, scipy_mat, countries, max_dist = hc.run(constructed_data_dict, make_scipy_mat=True)
+    final_clusters, scipy_mat, countries, max_dist, all_cluster_combinations = hc.run(constructed_data_dict, make_scipy_mat=True)
 
 
     show_dendrogram(scipy_mat, countries, 7500, "Ward's method", "Ward's method", "1992-2023")
+
+    show_silhouette(all_cluster_combinations, constructed_data_dict, euclidean_dist, printout=True)
 
     print(max_dist)
 
     if print_result:
         print("ward's method clusters")
-        print(clusters)
+        print(final_clusters)
 
 
 
     
     hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan, return_distances=True)
-    clusters, scipy_mat, countries, max_dist = hc.run(constructed_data_dict, make_scipy_mat=True)
+    final_clusters, scipy_mat, countries, max_dist, all_cluster_combinations = hc.run(constructed_data_dict, make_scipy_mat=True)
 
     show_dendrogram(scipy_mat, countries, 1970, "Manhattan distance", "average linkage", "1992-2023")
+
+    show_silhouette(all_cluster_combinations, constructed_data_dict, manhattan_dist, printout=True)
 
     print(max_dist)
 
     if print_result:
         print("average_linkage_w_manhattan clusters")
-        print(clusters)
+        print(final_clusters)
 
 
 
@@ -1079,9 +1200,9 @@ if __name__ == "__main__":
     except OSError as error:
         _ = "do nothing, all working as intended." 
 
-    preprocess()
-    second_preprocess()
-    naloga1(print_result=True)
+    # preprocess()
+    # second_preprocess()
+    naloga1(print_result=True, only_testing=False)
 
 
 
