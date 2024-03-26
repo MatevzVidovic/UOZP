@@ -232,7 +232,7 @@ class HierarchicalClustering:
         return (first, second, closestDist)
     
 
-    def run(self, data, printout=False):
+    def run(self, data, make_scipy_mat=False, printout=False):
         """
         Performs hierarchical clustering until there is only a single cluster left
         and return a recursive structure of clusters.
@@ -243,12 +243,35 @@ class HierarchicalClustering:
         # [[["Albert"], [["Branka"], ["Cene"]]], [["Nika"], ["Polona"]]]
         clusters = [[name] for name in data.keys()]
 
+        countries = list(data.keys())
+        # print("countries")
+        # print(countries)
+        # print("data.keys()")
+        # print(data.keys())
+
+        # print("enumerate(countries)")
+        # print(enumerate(countries))
+        # print("enumerate(data.keys())")
+        # print(enumerate(data.keys()))
+        clust2ix = {str([name]): ix for ix, name in enumerate(countries)}
+        curr_ix = len(countries)
+        
+        if printout:
+            print("clust2ix")
+            print(clust2ix)
+
+        scipy_mat = []
+
+        max_dist = -1e30
+
+
+
         while len(clusters) >= 2:
             first, second, dist = self.closest_clusters(data, clusters)
             # update the "clusters" variable
 
 
-            if self.return_distances:
+            if not make_scipy_mat and self.return_distances:
                 new_cluster = [first, second, dist]
             else:
                 new_cluster = [first, second]
@@ -267,6 +290,17 @@ class HierarchicalClustering:
             clusters.remove(first)
             clusters.remove(second)
             clusters.append(new_cluster)
+
+            if make_scipy_mat:
+
+                clust2ix[str([first, second])] = curr_ix
+                curr_ix += 1
+                # print(clust2ix[str(first)])
+                # print(clust2ix[str(second)])
+                scipy_mat.append([clust2ix[str(first)], clust2ix[str(second)], dist, curr_ix])
+
+                if dist > max_dist:
+                    max_dist = dist
             
             if printout:
                 print("\n" * 5)
@@ -274,7 +308,9 @@ class HierarchicalClustering:
                 print("next clusters")
                 print(clusters)
             
-
+        if make_scipy_mat:
+            return clusters, scipy_mat, countries, max_dist
+        
         return clusters
 
 
@@ -902,6 +938,20 @@ def average_linkage_w_manhattan(c1, c2):
 def average_linkage_w_cosine(c1, c2):
     return average_linkage(c1, c2, cosine_dist)
 
+
+
+
+def show_dendrogram(scipy_mat, countries, dist_cutoff, dist_name, linkage_name, str_bound_years):
+
+    import matplotlib.pyplot as plt
+    from scipy.cluster.hierarchy import dendrogram
+    dendrogram(scipy_mat, labels=countries, color_threshold=dist_cutoff)
+    plt.title("Voting in years: " + str_bound_years + ". Using: " + linkage_name + ".")
+    plt.xlabel("Country")
+    plt.ylabel(dist_name)
+    plt.show()
+
+
 def naloga1(print_during=False, print_result=False):
 
     import numpy as np
@@ -962,7 +1012,11 @@ def naloga1(print_during=False, print_result=False):
 
 
     hc = HierarchicalClustering(cluster_dist=average_linkage_w_cosine, return_distances=True)
-    clusters = hc.run(constructed_data_dict)
+    clusters, scipy_mat, countries, max_dist = hc.run(constructed_data_dict, make_scipy_mat=True)
+
+    print(max_dist)
+
+    show_dendrogram(scipy_mat, countries, 0.5, "Cosine distance", "average linkage", "1992-2023")
 
     if print_result:
         print("average-cosine clusters")
@@ -972,7 +1026,12 @@ def naloga1(print_during=False, print_result=False):
 
 
     hc = HierarchicalClustering(cluster_dist=wards_method, return_distances=True)
-    clusters = hc.run(constructed_data_dict)
+    clusters, scipy_mat, countries, max_dist = hc.run(constructed_data_dict, make_scipy_mat=True)
+
+
+    show_dendrogram(scipy_mat, countries, 7500, "Ward's method", "Ward's method", "1992-2023")
+
+    print(max_dist)
 
     if print_result:
         print("ward's method clusters")
@@ -982,7 +1041,11 @@ def naloga1(print_during=False, print_result=False):
 
     
     hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan, return_distances=True)
-    clusters = hc.run(constructed_data_dict)
+    clusters, scipy_mat, countries, max_dist = hc.run(constructed_data_dict, make_scipy_mat=True)
+
+    show_dendrogram(scipy_mat, countries, 1970, "Manhattan distance", "average linkage", "1992-2023")
+
+    print(max_dist)
 
     if print_result:
         print("average_linkage_w_manhattan clusters")
@@ -997,8 +1060,8 @@ def naloga1(print_during=False, print_result=False):
 if __name__ == "__main__":
 
 
-    preprocess()
-    second_preprocess()
+    # preprocess()
+    # second_preprocess()
     naloga1(print_result=True)
 
 
