@@ -952,6 +952,9 @@ def average_linkage_w_manhattan(c1, c2):
 def average_linkage_w_cosine(c1, c2):
     return average_linkage(c1, c2, cosine_dist)
 
+def average_linkage_w_euclidian(c1, c2):
+    return average_linkage(c1, c2, euclidean_dist)
+
 
 
 
@@ -991,7 +994,7 @@ def list_of_keys_from_tree_of_lists(tree_of_lists):
         
         return curr_list
 
-def show_silhouette(all_cluster_combinations, constructed_data_dict, dist_fn, num_of_clusts=7, printout=False):
+def show_silhouette(all_cluster_combinations, constructed_data_dict, dist_fn, silho_dist_name, dist_linkage_name, str_bound_years, num_of_clusts=7, printout=False):
     """
     all_cluster_combinations: list of lists which are recursive structures of clusters.
     """
@@ -1023,33 +1026,37 @@ def show_silhouette(all_cluster_combinations, constructed_data_dict, dist_fn, nu
         print("silho_for_each_clust")
         print(silho_for_each_clust)
 
-    avg_silho = silhouette_average(constructed_data_dict, chosen_clusts_flat, dist_fn)
+    # avg_silho = silhouette_average(constructed_data_dict, chosen_clusts_flat, dist_fn)
 
 
     import matplotlib.pyplot as plt
     import matplotlib.cm as cm
 
 
-    plt.xlim([-0.1, 1.0])
-        
+    plt.xlim([-1.0, 1.0])
+    
+    razmik = 15
     # Inserting blank space between silhouette
-    plt.ylim([0, 44 + (num_of_clusts + 1) * 10])
+    plt.ylim([0, 50 + (num_of_clusts+1) * razmik])
 
-    y_lower = 10
+    y_lower = 0
     for ix, curr_clust_flat in enumerate(chosen_clusts_flat):
 
-
-
         color = cm.nipy_spectral(float(ix) / num_of_clusts)
-
 
         curr_clust_silhos = silho_for_each_clust[ix]
         # Plot each silhouette value
         for j in range(len(curr_clust_silhos)):
             plt.plot([0, curr_clust_silhos[j]], [j + y_lower, j + y_lower], color=color)
         
-        y_lower += len(curr_clust_silhos) + 10  # 10 for the 0th silho
-    
+        y_lower += len(curr_clust_silhos)
+        plt.text(0.0, y_lower, str(curr_clust_flat)+":")
+        y_lower += razmik
+
+    plt.title("Silhouette plot for " + dist_linkage_name + " for" + str_bound_years + ". Using: " + silho_dist_name + ".")
+    plt.xlabel("Silhouette coefficient values")
+    plt.xticks([-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1])
+    plt.yticks([])  # Clear the yaxis labels
     plt.show()
     
 
@@ -1123,6 +1130,14 @@ def naloga1(print_during=False, print_result=False, only_testing=False):
 
 
 
+    
+
+
+
+
+
+
+
 
 
     hc = HierarchicalClustering(cluster_dist=average_linkage_w_cosine, return_distances=True)
@@ -1130,9 +1145,9 @@ def naloga1(print_during=False, print_result=False, only_testing=False):
 
     print(max_dist)
 
-    show_dendrogram(scipy_mat, countries, 0.5, "Cosine distance", "average linkage", "1992-2023")
+    show_dendrogram(scipy_mat, countries, 0.467, "Cosine distance", "average linkage", "1992-2023")
 
-    show_silhouette(all_cluster_combinations, constructed_data_dict, cosine_dist, printout=True)
+    show_silhouette(all_cluster_combinations, constructed_data_dict, cosine_dist, "cosine_dist", "average_linkage_w_cosine", "1992-2023",  num_of_clusts=9, printout=True)
 
     if print_result:
         print("average-cosine clusters")
@@ -1145,9 +1160,9 @@ def naloga1(print_during=False, print_result=False, only_testing=False):
     final_clusters, scipy_mat, countries, max_dist, all_cluster_combinations = hc.run(constructed_data_dict, make_scipy_mat=True)
 
 
-    show_dendrogram(scipy_mat, countries, 7500, "Ward's method", "Ward's method", "1992-2023")
+    show_dendrogram(scipy_mat, countries, 9450, "Ward's method", "Ward's method", "1992-2023")
 
-    show_silhouette(all_cluster_combinations, constructed_data_dict, euclidean_dist, printout=True)
+    show_silhouette(all_cluster_combinations, constructed_data_dict, euclidean_dist, "euclidean_dist", "Ward's method", "1992-2023", num_of_clusts=10, printout=True)
 
     print(max_dist)
 
@@ -1158,18 +1173,36 @@ def naloga1(print_during=False, print_result=False, only_testing=False):
 
 
     
-    hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan, return_distances=True)
-    final_clusters, scipy_mat, countries, max_dist, all_cluster_combinations = hc.run(constructed_data_dict, make_scipy_mat=True)
+    # hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan, return_distances=True)
+    # final_clusters, scipy_mat, countries, max_dist, all_cluster_combinations = hc.run(constructed_data_dict, make_scipy_mat=True)
 
-    show_dendrogram(scipy_mat, countries, 1970, "Manhattan distance", "average linkage", "1992-2023")
+    # show_dendrogram(scipy_mat, countries, 1970, "Manhattan distance", "average linkage", "1992-2023")
 
-    show_silhouette(all_cluster_combinations, constructed_data_dict, manhattan_dist, printout=True)
+    # show_silhouette(all_cluster_combinations, constructed_data_dict, manhattan_dist, num_of_clusts=10, printout=True)
 
-    print(max_dist)
+    # print(max_dist)
 
-    if print_result:
-        print("average_linkage_w_manhattan clusters")
-        print(final_clusters)
+    # if print_result:
+    #     print("average_linkage_w_manhattan clusters")
+    #     print(final_clusters)
+    
+
+
+
+
+
+    # hc = HierarchicalClustering(cluster_dist=average_linkage_w_euclidian, return_distances=True)
+    # final_clusters, scipy_mat, countries, max_dist, all_cluster_combinations = hc.run(constructed_data_dict, make_scipy_mat=True)
+
+    # print(max_dist)
+
+    # show_dendrogram(scipy_mat, countries, 0.5, "Euclidean distance", "average linkage", "1992-2023")
+
+    # show_silhouette(all_cluster_combinations, constructed_data_dict, euclidean_dist, printout=True)
+
+    # if print_result:
+    #     print("average-euclidean clusters")
+    #     print(final_clusters)
 
 
 
