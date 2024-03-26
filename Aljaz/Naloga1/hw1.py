@@ -295,11 +295,11 @@ def prepare_profile():
 
     # Make a matrix: From country are the names of the rows and To country are the names of the columns
     df_televoting_avg = df_televoting_avg.unstack(level=-1)
-
+    
     # Go over all values: if From country and To country are the same, set the distance to nan; else if the value is nan, set it to 0
     for i in range(len(df_televoting_avg)):
         for j in range(len(df_televoting_avg.columns)):
-            if df_televoting_avg.index[i] == df_televoting_avg.columns[j]:
+            if df_televoting_avg.index[i] == df_televoting_avg.columns[j][1]:
                 df_televoting_avg.iat[i, j] = math.nan
             elif math.isnan(df_televoting_avg.iat[i, j]):
                 df_televoting_avg.iat[i, j] = 0
@@ -311,6 +311,7 @@ def prepare_profile():
     # print(df_televoting_avg.loc[country].sort_values(ascending=False).head(5))
                 
     # Make a dict from the dataframe with From country as the key and values as a list of distances to To countries
+    # Drop the first level of columns "Points"
     df_televoting_avg.columns = df_televoting_avg.columns.droplevel()
     # Transpose the dataframe for correct data structure
     df_televoting_avg = df_televoting_avg.transpose()
@@ -318,12 +319,18 @@ def prepare_profile():
     for key in data:
         data[key] = list(data[key].values())
     
-    # normalize the data
+    # Normalize data by rows
     # for key in data:
-    #     max_value = max(data[key])
+    #     # max have to ignore nan values
+    #     max_value = max([x for x in data[key] if not math.isnan(x)])
     #     for i in range(len(data[key])):
     #         data[key][i] = data[key][i] / max_value
 
+    # Normalize data by columns
+    # for i in range(len(data[list(data.keys())[0]])):
+    #     max_value = max([data[key][i] for key in data if not math.isnan(data[key][i])])
+    #     for key in data:
+    #         data[key][i] = data[key][i] / max_value
 
     # ''' 
         
@@ -336,22 +343,23 @@ def prepare_profile():
     # Make a matrix: From country are the names of the rows and To country are the names of the columns
     df_jury_avg = df_jury_avg.unstack(level=-1)
 
-    # # Go over all values: if From country and To country are the same, set the distance to nan; else if the value is nan, set it to 0
-    # for i in range(len(df_jury_avg)):
-    #     for j in range(len(df_jury_avg.columns)):
-    #         if df_jury_avg.index[i] == df_jury_avg.columns[j]:
-    #             df_jury_avg.iat[i, j] = math.nan
-    #         elif math.isnan(df_jury_avg.iat[i, j]):
-    #             df_jury_avg.iat[i, j] = 0
+    # Go over all values: if From country and To country are the same, set the distance to nan; else if the value is nan, set it to 0
+    for i in range(len(df_jury_avg)):
+        for j in range(len(df_jury_avg.columns)):
+            if df_jury_avg.index[i] == df_jury_avg.columns[j][1]:
+                df_jury_avg.iat[i, j] = math.nan
+            elif math.isnan(df_jury_avg.iat[i, j]):
+                df_jury_avg.iat[i, j] = 0
 
     # Make a dict from the dataframe with From country as the key and values as a list of distances to To countries
+    # Drop the first level of columns "Points"
     df_jury_avg.columns = df_jury_avg.columns.droplevel()
     # Transpose the dataframe for correct data structure
     df_jury_avg = df_jury_avg.transpose()
     data = df_jury_avg.to_dict()
     for key in data:
         data[key] = list(data[key].values())
-    '''
+    # '''
 
     # JURY AND TELEVOTING
     '''
@@ -364,22 +372,27 @@ def prepare_profile():
     df_after_2016_avg = df_after_2016_avg.unstack(level=-1)
 
     # # Go over all values: if From country and To country are the same, set the distance to nan; else if the value is nan, set it to 0
-    # for i in range(len(df_after_2016_avg)):
-    #     for j in range(len(df_after_2016_avg.columns)):
-    #         if df_after_2016_avg.index[i] == df_after_2016_avg.columns[j]:
-    #             df_after_2016_avg.iat[i, j] = math.nan
-    #         elif math.isnan(df_after_2016_avg.iat[i, j]):
-    #             df_after_2016_avg.iat[i, j] = 0
+    for i in range(len(df_after_2016_avg)):
+        for j in range(len(df_after_2016_avg.columns)):
+            if df_after_2016_avg.index[i] == df_after_2016_avg.columns[j][1]:
+                df_after_2016_avg.iat[i, j] = math.nan
+            elif math.isnan(df_after_2016_avg.iat[i, j]):
+                df_after_2016_avg.iat[i, j] = 0
 
     # Make a dict from the dataframe with From country as the key and values as a list of distances to To countries
+    # Drop the first level of columns "Points"
     df_after_2016_avg.columns = df_after_2016_avg.columns.droplevel()
     # Transpose the dataframe for correct data structure
     df_after_2016_avg = df_after_2016_avg.transpose()
     data = df_after_2016_avg.to_dict()
     for key in data:
         data[key] = list(data[key].values())
-    '''
+    # '''
+
+    # BEFORE 2016
     
+
+
     return data
 
 def run_hc(data, construct_Z=False):
@@ -513,7 +526,7 @@ def silhouette_graph(all_clusters, data, n_clusters=5):
             clusters = cluster
             break
         
-    plt.xlim([-0.1, 1.0])
+    plt.xlim([-0.2, 1.0])
         
     # Inserting blank space between silhouette
     plt.ylim([0, 44 + (n_clusters + 1) * 10])
@@ -531,50 +544,43 @@ def silhouette_graph(all_clusters, data, n_clusters=5):
     for cluster in flattened_clusters:
         sample_silhouette_values.append([])
         for el in cluster:
-            sample_silhouette_values[-1].append(silhouette(el, flattened_clusters, data))
+            sample_silhouette_values[-1].append((silhouette(el, flattened_clusters, data), el))
 
     # Aggregate the silhouette scores for samples belonging to cluster i, and sort them
     y_lower = 10
     for i in range(n_clusters):
         ith_cluster_silhouette_values = sample_silhouette_values[i]
 
-        ith_cluster_silhouette_values.sort()
-
+        # sort by first element in tuple
+        ith_cluster_silhouette_values.sort(key=lambda x: x[0])
+        
         size_cluster_i = len(sample_silhouette_values[i])
         y_upper = y_lower + size_cluster_i
 
         color = cm.nipy_spectral(float(i) / n_clusters)
 
-        # Color all silhouettes in the same cluster
-        # plt.fill_betweenx(
-        #     np.arange(y_lower, y_upper),
-        #     0,
-        #     ith_cluster_silhouette_values,
-        #     facecolor=color,
-        #     edgecolor=color,
-        #     alpha=0.7,
-        # )
-
-        # Plot each silhouette value
+        # Plot each silhouette value and add country name and make ploted line thicker
         for j in range(len(ith_cluster_silhouette_values)):
-            plt.plot([0, ith_cluster_silhouette_values[j]], [j + y_lower, j + y_lower], color=color)
-
-        plt.text(-0.05, y_lower + 0.5 * size_cluster_i, str(flattened_clusters[i]))
+            plt.plot([0, ith_cluster_silhouette_values[j][0]], [j + y_lower, j + y_lower], color=color, linewidth=3)
+            plt.text(-0.15, j + y_lower + 0.05, ith_cluster_silhouette_values[j][1])
 
         # Compute the new y_lower for next plot
         y_lower = y_upper + 10  # 10 for the 0 samples
 
     plt.title("Silhouette plot for Eurovision voting since 2016 - televoting (complete linkage with cosine distance)")
     plt.xlabel("The silhouette coefficient values")
-    # plt.ylabel("Cluster label")
 
-    # The vertical line for average silhouette score of all the values
+
+    # The vertical line for average silhouette score of all the values and with label "Average silhouette"
     plt.axvline(x=silhouette_avg, color="red", linestyle="--")
+    plt.text(silhouette_avg + 0.001, 2, "Average silhouette", rotation=90)
+
 
     plt.yticks([])  # Clear the yaxis labels / ticks
-    plt.xticks([-0.1, 0, 0.2, 0.4, 0.6, 0.8, 1])
+    plt.xticks([-0.2, 0, 0.2, 0.4, 0.6, 0.8, 1])
 
     plt.show()
+
 
 # Prepare the data
 data = prepare_profile()
@@ -583,18 +589,16 @@ data = prepare_profile()
 # clusters = run_hc(data)
 # dendrogram(clusters)
 
-# Draw dendrogram with scipy package
+# Make dendrogram with scipy package
 Z, names, all_clusters = run_hc(data, construct_Z=True)
 dendrogram_scipy(Z, names)
 
-# Calculate silhouette and draw the graph
-# print(best_silhoutte(all_clusters, data))
-silhouette_graph(all_clusters, data, n_clusters=16)
+# Make silhouette graph
+silhouette_graph(all_clusters, data, n_clusters=10)
 
 
-
-
-
-
-
+# TODO
+# - ward
+# - vec podatkov
+# - preferirane drzave
 
