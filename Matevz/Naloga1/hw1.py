@@ -394,7 +394,6 @@ def preprocess(printout=False):
     import numpy as np
     import math
 
-    file_path = "path_to_your_file.xlsx"
 
     raw_data = pd.read_excel("eurovision_song_contest_1957_2023.xlsx")
 
@@ -554,17 +553,17 @@ def preprocess(printout=False):
         print("preprocessed.csv:")
         print(constructed_data)
 
-    constructed_data.to_csv("preprocessed.csv", index=False)
+    constructed_data.to_csv("on_the_fly_data/preprocessed.csv", index=False)
     # np.savetxt("to_country_and_edition_at_ixs.txt", np.column_stack((to_country_at_corresponding_ix, edition_at_corresponding_ix)), fmt="%s")
 
     col_labels = pd.DataFrame(to_country_and_edition_pairs)
-    col_labels.to_csv("col_labels.csv", index=False)
+    col_labels.to_csv("on_the_fly_data/col_labels.csv", index=False)
 
     row_labels = pd.DataFrame(from_countries)
-    row_labels.to_csv("row_labels.csv", index=False)
+    row_labels.to_csv("on_the_fly_data/row_labels.csv", index=False)
 
     col_label_decomposition = pd.DataFrame(np.column_stack((to_country_at_corresponding_ix, edition_at_corresponding_ix)))
-    col_label_decomposition.to_csv("col_label_decomposition.csv", index=False)
+    col_label_decomposition.to_csv("on_the_fly_data/col_label_decomposition.csv", index=False)
 
 
 
@@ -584,7 +583,7 @@ def preprocess(printout=False):
                 from_count_voted_in_edition.at[from_country, edition] = True
 
     # save this to a file
-    from_count_voted_in_edition.to_csv("from_count_voted_in_edition.csv")
+    from_count_voted_in_edition.to_csv("on_the_fly_data/from_count_voted_in_edition.csv")
 
     if printout:
         print("from_count_voted_in_edition.csv:")
@@ -601,17 +600,17 @@ def second_preprocess(printout=False):
 
 
 
-    constructed_data_df = pd.read_csv("preprocessed.csv")
-    constructed_data = pd.read_csv("preprocessed.csv").values
+    constructed_data_df = pd.read_csv("on_the_fly_data/preprocessed.csv")
+    constructed_data = pd.read_csv("on_the_fly_data/preprocessed.csv").values
     # np.savetxt("to_country_and_edition_at_ixs.txt", np.column_stack((to_country_at_corresponding_ix, edition_at_corresponding_ix)), fmt="%s")
 
-    col_labels = pd.read_csv("col_labels.csv").values
+    col_labels = pd.read_csv("on_the_fly_data/col_labels.csv").values
 
-    row_labels = pd.read_csv("row_labels.csv").values
+    row_labels = pd.read_csv("on_the_fly_data/row_labels.csv").values
 
-    col_label_decomposition = pd.read_csv("col_label_decomposition.csv").values
+    col_label_decomposition = pd.read_csv("on_the_fly_data/col_label_decomposition.csv").values
 
-    from_count_voted_in_edition = pd.read_csv("from_count_voted_in_edition.csv")
+    from_count_voted_in_edition = pd.read_csv("on_the_fly_data/from_count_voted_in_edition.csv")
     # make countries the index
     from_count_voted_in_edition.set_index("Unnamed: 0", inplace=True)
 
@@ -646,8 +645,8 @@ def second_preprocess(printout=False):
     before_serbia_data_pd = pd.DataFrame(constructed_data, index=ind(row_labels), columns=ind(col_labels))
     # keep only Serbia, Yugoslavia, and Serbia & Montenegro in the pd
 
-    before_serbia_data_pd.loc[["Serbia", "Yugoslavia", "Serbia & Montenegro"],:].to_csv("before_serbia_data.csv")
-    # before_serbia_data_pd.to_csv("before_serbia_data.csv")
+    before_serbia_data_pd.loc[["Serbia", "Yugoslavia", "Serbia & Montenegro"],:].to_csv("on_the_fly_data/before_serbia_data.csv")
+    # before_serbia_data_pd.to_csv("on_the_fly_data/before_serbia_data.csv")
 
 
 
@@ -823,7 +822,7 @@ def second_preprocess(printout=False):
         print("constructed_data.csv:")
         print(constructed_data_pd)
 
-    constructed_data_pd.to_csv("constructed_data.csv")
+    constructed_data_pd.to_csv("on_the_fly_data/constructed_data.csv")
 
     # # final from_count_voted_in_edition to pd with row and col labels
     # print("before: from_count_voted_in_edition")
@@ -831,7 +830,7 @@ def second_preprocess(printout=False):
     # from_count_voted_in_edition.reset_index(inplace=True)
     # print("after: from_count_voted_in_edition")
     # print(from_count_voted_in_edition)
-    # from_count_voted_in_edition.to_csv("from_count_voted_in_edition_refined.csv")
+    # from_count_voted_in_edition.to_csv("on_the_fly_data/from_count_voted_in_edition_refined.csv")
 
 
 
@@ -959,14 +958,14 @@ def naloga1(print_during=False, print_result=False):
 
     import math
 
-
-    constructed_data_df = pd.read_csv("constructed_data.csv")
+    
+    constructed_data_df = pd.read_csv("on_the_fly_data/constructed_data.csv")
     constructed_data_df.set_index("Unnamed: 0", inplace=True)
     constructed_data = constructed_data_df.values
 
-    col_labels = pd.read_csv("col_labels.csv").values
+    col_labels = pd.read_csv("on_the_fly_data/col_labels.csv").values
 
-    col_label_decomposition = pd.read_csv("col_label_decomposition.csv").values
+    col_label_decomposition = pd.read_csv("on_the_fly_data/col_label_decomposition.csv").values
 
     if print_during:
         print("constructed_data_df")
@@ -1060,8 +1059,28 @@ def naloga1(print_during=False, print_result=False):
 if __name__ == "__main__":
 
 
-    # preprocess()
-    # second_preprocess()
+    import os 
+   
+    # # Directory 
+    # directory = "GeeksForGeeks"
+    
+    # # Parent Directory path 
+    # parent_dir = "/home/User/Documents"
+    
+    # # Path 
+    # path = os.path.join(parent_dir, directory) 
+    
+    # # Create the directory 
+    # # 'GeeksForGeeks' in 
+    # # '/home / User / Documents'
+    path = "on_the_fly_data" 
+    try:
+        os.mkdir(path)
+    except OSError as error:
+        _ = "do nothing, all working as intended." 
+
+    preprocess()
+    second_preprocess()
     naloga1(print_result=True)
 
 
