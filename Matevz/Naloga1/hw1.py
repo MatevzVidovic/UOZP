@@ -1,4 +1,6 @@
 import math
+import numpy as np
+import pandas as pd
 
 def manhattan_dist(r1, r2):
     """ Arguments r1 and r2 are lists of numbers """
@@ -164,7 +166,7 @@ class HierarchicalClustering:
         
         return curr_list
 
-    def closest_clusters(self, data, clusters):
+    def closest_clusters(self, data, clusters, printout=False):
         """
         Return the closest pair of clusters and their distance.
         """
@@ -205,13 +207,18 @@ class HierarchicalClustering:
                 for ixSecond in range(ixFirst+1, len(data_clusters_lists_of_lists)):
                     first_cluster = data_clusters_lists_of_lists[ixFirst]
                     second_cluster = data_clusters_lists_of_lists[ixSecond]
-                    print("first_cluster")
-                    print(first_cluster)
-                    print("second_cluster")
-                    print(second_cluster)
+                    
+                    if printout:
+                        print("first_cluster")
+                        print(first_cluster)
+                        print("second_cluster")
+                        print(second_cluster)
+                    
                     currDist = self.cluster_dist(first_cluster, second_cluster)
-                    print("currDist")
-                    print(currDist)
+                    
+                    if printout:
+                        print("currDist")
+                        print(currDist)
                     
                     if not math.isnan(currDist) and currDist < closestDist:
                         closestDist = currDist
@@ -225,7 +232,7 @@ class HierarchicalClustering:
         return (first, second, closestDist)
     
 
-    def run(self, data):
+    def run(self, data, printout=False):
         """
         Performs hierarchical clustering until there is only a single cluster left
         and return a recursive structure of clusters.
@@ -246,23 +253,26 @@ class HierarchicalClustering:
             else:
                 new_cluster = [first, second]
 
-            print("\n" * 5)
+            if printout:
+                print("\n" * 5)
 
-            print("clusters")
-            print(clusters)
-            
-            print("first")
-            print(first)
-            print("second")
-            print(second)
+                print("clusters")
+                print(clusters)
+                
+                print("first")
+                print(first)
+                print("second")
+                print(second)
+
             clusters.remove(first)
             clusters.remove(second)
             clusters.append(new_cluster)
             
-            print("\n" * 5)
-            
-            print("next clusters")
-            print(clusters)
+            if printout:
+                print("\n" * 5)
+                
+                print("next clusters")
+                print(clusters)
             
 
         return clusters
@@ -337,20 +347,674 @@ def silhouette_average(data, clusters):
     return avg_silhouette
 
 
-if __name__ == "__main__":
 
-    data = {"a": [1, 2],
-            "b": [2, 3],
-            "c": [5, 5]}
 
-    def average_linkage_w_manhattan(c1, c2):
+
+
+def preprocess(printout=False):
+
+
+    import pandas as pd
+    import numpy as np
+    import math
+
+    file_path = "path_to_your_file.xlsx"
+
+    raw_data = pd.read_excel("eurovision_song_contest_1957_2023.xlsx")
+
+    raw_data_np = raw_data.values
+
+    if printout:
+        print(raw_data.head())
+        print(raw_data_np)
+
+
+
+    # Finding unique values of each column
+
+    for col in raw_data.columns:
+
+        unique_values = raw_data[col].unique()
+
+        if printout:
+            print(f"Column: {col}")
+            print(unique_values)
+            print()
+
+
+    if printout:
+        print(5*"\n")
+
+
+
+    # When was televoting first used?
+
+    for ix in range(raw_data.shape[0]):
+        if raw_data.at[ix, "Jury or Televoting"] == "T":
+            if printout:
+                print("Televoting first in:")
+                print(raw_data.at[ix, "Year"])
+            break
+
+
+
+    """
+    - Creating a dictionary of every edition to a df of its rows.
+    - Finding out how many countries voted in each possible edition.
+    """
+    if False:
+        editions = raw_data["Edition"].unique()
+
+        edition2data_np = {}
+
+        for edition in editions:
+            is_curr_edition = raw_data_np[:, 2] == edition
+            edition2data_np[edition] = raw_data_np[is_curr_edition, :]
+
+
+        # np.set_printoptions(threshold=np.inf)
+        print("edition2data_np[2015f]")
+        print(edition2data_np["2015f"])
+        np.set_printoptions(threshold=20)
+
+
+
+
+
+
+        edition2num_of_voting_countries = {}
+
+        for edition in editions:
+            curr_data_np = edition2data_np[edition]
+            voting_countries = np.unique(curr_data_np[:,5])
+
+            edition2num_of_voting_countries[edition] = voting_countries.size
+
+        print("edition2num_of_voting_countries")
+        print(edition2num_of_voting_countries)
+
+
+
+    if printout:
+        print(5*"\n")
+
+
+
+    acceptable_editions = [str(i) + "f" for i in range(1992,2024)]
+    # print("acceptable_editions")
+    # print(acceptable_editions)
+
+
+
+
+    # Preparing a dictionary of data for all acceptable_editions
+    acc_edition2data_np = {}
+
+    for edition in acceptable_editions:
+        is_curr_edition = raw_data_np[:, 2] == edition
+        acc_edition2data_np[edition] = raw_data_np[is_curr_edition, :]
+
+    if printout:
+        # np.set_printoptions(threshold=np.inf)
+        print("acc_edition2data_np[2015f]")
+        print(acc_edition2data_np["2015f"])
+        # np.set_printoptions(threshold=20)
+
+
+
+
+
+    from_countries = list(raw_data["From country"].unique())
+    # to_countries = raw_data["To country"].unique()
+
+    if printout:
+        print(raw_data.columns)
+
+    from_country_col_ix = int(list(raw_data.columns).index("From country"))
+    to_country_col_ix = int(list(raw_data.columns).index("To country"))
+    edition_col_ix = int(list(raw_data.columns).index("Edition"))
+    points_ix = int(list(raw_data.columns).index("Points      "))
+
+
+    to_country_and_edition_pairs = list()
+    # This is meant for various grouping later:
+    to_country_at_corresponding_ix = list()
+    edition_at_corresponding_ix = list()
+
+    for acc_edition in acceptable_editions:
+        data_np = acc_edition2data_np[acc_edition]
+        curr_to_countries = np.unique(data_np[:, to_country_col_ix])
+
+        for country in curr_to_countries:
+            country_edition_pair = country + acc_edition
+            to_country_and_edition_pairs.append(country_edition_pair)
+            to_country_at_corresponding_ix.append(country)
+            edition_at_corresponding_ix.append(acc_edition)
+
+
+
+    # fills it with NaNs
+    constructed_data = pd.DataFrame(float('nan'), index=from_countries, columns=to_country_and_edition_pairs)
+
+    if printout:
+        # check if all entries in constructed_data are NaNs
+        print("Is this all Nans?")
+        print(constructed_data.isnull().values.all())
+    # what does isnull() return? A boolean mask of the same shape as the DataFrame, True if the value is NaN, False otherwise.
+
+    for edition, data_np in acc_edition2data_np.items():
+        for row in data_np:
+            
+            from_country = row[from_country_col_ix]
+            to_country = row[to_country_col_ix]
+
+            to_country_and_edition_pair = to_country + edition
+            points = row[points_ix]
+
+            if not math.isnan(points):
+                constructed_data.loc[from_country, to_country_and_edition_pair] = points
+
+    if printout:
+        print("preprocessed.csv:")
+        print(constructed_data)
+
+    constructed_data.to_csv("preprocessed.csv", index=False)
+    # np.savetxt("to_country_and_edition_at_ixs.txt", np.column_stack((to_country_at_corresponding_ix, edition_at_corresponding_ix)), fmt="%s")
+
+    col_labels = pd.DataFrame(to_country_and_edition_pairs)
+    col_labels.to_csv("col_labels.csv", index=False)
+
+    row_labels = pd.DataFrame(from_countries)
+    row_labels.to_csv("row_labels.csv", index=False)
+
+    col_label_decomposition = pd.DataFrame(np.column_stack((to_country_at_corresponding_ix, edition_at_corresponding_ix)))
+    col_label_decomposition.to_csv("col_label_decomposition.csv", index=False)
+
+
+
+
+
+
+    from_count_voted_in_edition = pd.DataFrame(False, index=from_countries, columns=acceptable_editions)
+
+    # Editions where the country voted
+    for edition, data_np in acc_edition2data_np.items():
+        acc_edition2list_of_voting_countries = []
+        
+        curr_data = set(data_np[:, from_country_col_ix])
+
+        for from_country in from_countries:
+            if from_country in curr_data:
+                from_count_voted_in_edition.at[from_country, edition] = True
+
+    # save this to a file
+    from_count_voted_in_edition.to_csv("from_count_voted_in_edition.csv")
+
+    if printout:
+        print("from_count_voted_in_edition.csv:")
+        print(from_count_voted_in_edition)
+
+
+
+
+def second_preprocess(printout=False):
+
+    import numpy as np
+    import pandas as pd
+    import math
+
+
+
+    constructed_data_df = pd.read_csv("preprocessed.csv")
+    constructed_data = pd.read_csv("preprocessed.csv").values
+    # np.savetxt("to_country_and_edition_at_ixs.txt", np.column_stack((to_country_at_corresponding_ix, edition_at_corresponding_ix)), fmt="%s")
+
+    col_labels = pd.read_csv("col_labels.csv").values
+
+    row_labels = pd.read_csv("row_labels.csv").values
+
+    col_label_decomposition = pd.read_csv("col_label_decomposition.csv").values
+
+    from_count_voted_in_edition = pd.read_csv("from_count_voted_in_edition.csv")
+    # make countries the index
+    from_count_voted_in_edition.set_index("Unnamed: 0", inplace=True)
+
+
+    if printout:
+        print("from_count_voted_in_edition:")
+        print(from_count_voted_in_edition)
+
+        print("preprocessed.csv:")
+        print(constructed_data)
+
+        print("\n" * 5)
+
+
+
+
+
+
+
+
+
+    # make_into_reasonable_index
+    def ind(np_array_of_strings):
+        new = []
+        for i in np_array_of_strings:
+            new.append(i[0])
+        return new
+
+
+
+    # final constructed_data to pd with row and col labels
+    before_serbia_data_pd = pd.DataFrame(constructed_data, index=ind(row_labels), columns=ind(col_labels))
+    # keep only Serbia, Yugoslavia, and Serbia & Montenegro in the pd
+
+    before_serbia_data_pd.loc[["Serbia", "Yugoslavia", "Serbia & Montenegro"],:].to_csv("before_serbia_data.csv")
+    # before_serbia_data_pd.to_csv("before_serbia_data.csv")
+
+
+
+
+
+
+
+
+
+
+
+    # Yugoslavia postane Serbia, ker gledamo od 1992 naprej in je takrat bila to predstavnica.
+    # https://en.wikipedia.org/wiki/Yugoslavia_in_the_Eurovision_Song_Contest_1992
+    # serbia and montenegro postane serbia, ker je večji del prebivalstva.
+
+    # Check if Serbia ever voted when Yugoslavia or Serbia and Montenegro voted
+    clash_pd_row = from_count_voted_in_edition.loc["Serbia"] & from_count_voted_in_edition.loc["Yugoslavia"] | from_count_voted_in_edition.loc["Serbia"] & from_count_voted_in_edition.loc["Serbia & Montenegro"] | from_count_voted_in_edition.loc["Yugoslavia"] & from_count_voted_in_edition.loc["Serbia & Montenegro"]
+
+    # Check if any in clash_pd_row is True
+    clash = clash_pd_row.any()
+
+    # print("clash")
+    # print(clash)
+
+    if not clash:
+        if printout:
+            print("Serbia, Yugo, Serb and Montenegro never voted together")
+        # Join the votes to Serbia
+        from_count_voted_in_edition.loc["Serbia"] = from_count_voted_in_edition.loc["Serbia"] | from_count_voted_in_edition.loc["Yugoslavia"] | from_count_voted_in_edition.loc["Serbia & Montenegro"]
+        
+        serbia_ix = list(row_labels).index("Serbia")
+        yugoslavia_ix = list(row_labels).index("Yugoslavia")
+        serbia_and_montenegro_ix = list(row_labels).index("Serbia & Montenegro")
+
+        length = constructed_data[serbia_ix].size
+        for i in range(length):
+            sum = 0
+            if not math.isnan(constructed_data[serbia_ix][i]):
+                sum += constructed_data[serbia_ix][i]
+            if not math.isnan(constructed_data[yugoslavia_ix][i]):
+                sum += constructed_data[yugoslavia_ix][i]
+            if not math.isnan(constructed_data[serbia_and_montenegro_ix][i]):
+                sum += constructed_data[serbia_and_montenegro_ix][i]
+
+            constructed_data[serbia_ix][i] = sum
+
+        # Remove the rows of Yugoslavia and Serbia and Montenegro
+        row_ixs_to_remove = [yugoslavia_ix, serbia_and_montenegro_ix]
+        mask = np.array([i not in row_ixs_to_remove for i in range(len(row_labels))])
+        constructed_data = constructed_data[mask]
+        row_labels = row_labels[mask]
+        from_count_voted_in_edition = from_count_voted_in_edition[mask]
+
+
+
+
+
+
+    # 'F.Y.R. Macedonia' postane 'North Macedonia' ker je to uradno ime od 2019 naprej
+        
+    # print("from_count_voted_in_edition.loc[North Macedonia]")
+    # print(from_count_voted_in_edition.loc["North Macedonia"])
+
+    # print("from_count_voted_in_edition.loc[F.Y.R. Macedonia]")
+    # print(from_count_voted_in_edition.loc["F.Y.R. Macedonia"])
+
+    # Check if Serbia ever voted when Yugoslavia or Serbia and Montenegro voted
+    clash_pd_row = from_count_voted_in_edition.loc["North Macedonia"] & from_count_voted_in_edition.loc["F.Y.R. Macedonia"]
+
+    # Check if any in clash_pd_row is True
+    clash = clash_pd_row.any()
+
+    # print("clash")
+    # print(clash)
+
+    if not clash:
+        if printout:
+            print("North Macedonia and F.Y.R. Macedonia never voted together")
+        # do the same for North Macedonia and F.Y.R. Macedonia
+        from_count_voted_in_edition.loc["North Macedonia"] = from_count_voted_in_edition.loc["North Macedonia"] | from_count_voted_in_edition.loc["F.Y.R. Macedonia"]
+
+        north_macedonia_ix = list(row_labels).index("North Macedonia")
+        fyr_macedonia_ix = list(row_labels).index("F.Y.R. Macedonia")
+
+        length = constructed_data[north_macedonia_ix].size
+        for i in range(length):
+            sum = 0
+            if not math.isnan(constructed_data[north_macedonia_ix][i]):
+                sum += constructed_data[north_macedonia_ix][i]
+            if not math.isnan(constructed_data[fyr_macedonia_ix][i]):
+                sum += constructed_data[fyr_macedonia_ix][i]
+
+            constructed_data[north_macedonia_ix][i] = sum
+
+        # Remove the row of F.Y.R. Macedonia
+        row_ixs_to_remove = [fyr_macedonia_ix]
+        mask = np.array([i not in row_ixs_to_remove for i in range(len(row_labels))])
+        constructed_data = constructed_data[mask]
+        row_labels = row_labels[mask]
+        from_count_voted_in_edition = from_count_voted_in_edition[mask]
+
+        if printout:
+            print("after:")
+            print("from_count_voted_in_edition.loc[North Macedonia]")
+            print(from_count_voted_in_edition.loc["North Macedonia"])
+
+
+    if printout:
+        print("After duplicate merging")
+        print("constructed_data.shape")
+        print(constructed_data.shape)
+    # print("row_labels.T")
+    # print(row_labels.T)
+    # print("from_count_voted_in_edition")
+    # print(from_count_voted_in_edition)
+
+    # print("constructed_data after duplicate removal:")
+    # print(constructed_data)
+
+
+
+
+
+
+
+    """
+    I moved this here, so I can split the analysis in 5 year periods at the start of the pipeline,
+    and above countries don't fall off the map prematurely, causing errors"""
+
+    # # find all rows which are all zeros and get a list of their row ixs
+    # all_nan_rows_ixs = np.all(constructed_data_df.isnull().values, axis=1)
+
+    # find if all elements in a row are null in constructed_data
+    all_nan_rows_ixs = np.all(np.isnan(constructed_data), axis=1)
+
+    # print("all_nan_rows_ixs")
+    # print(all_nan_rows_ixs)
+
+    # remove these rows
+    constructed_data = constructed_data[~all_nan_rows_ixs]
+    row_labels = row_labels[~all_nan_rows_ixs]
+    from_count_voted_in_edition = from_count_voted_in_edition[~all_nan_rows_ixs]
+
+    if printout:
+        print("after zero removal")
+        print("constructed_data.shape")
+        print(constructed_data.shape)
+    # print("row_labels.T")
+    # print(row_labels.T)
+    # print("from_count_voted_in_edition")
+    # print(from_count_voted_in_edition)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+    # final constructed_data to pd with row and col labels
+    constructed_data_pd = pd.DataFrame(constructed_data, index=ind(row_labels), columns=ind(col_labels))
+    
+    if printout:
+        print("constructed_data_pd.columns")
+        print(constructed_data_pd.columns)
+        print("constructed_data.csv:")
+        print(constructed_data_pd)
+
+    constructed_data_pd.to_csv("constructed_data.csv")
+
+    # # final from_count_voted_in_edition to pd with row and col labels
+    # print("before: from_count_voted_in_edition")
+    # print(from_count_voted_in_edition)
+    # from_count_voted_in_edition.reset_index(inplace=True)
+    # print("after: from_count_voted_in_edition")
+    # print(from_count_voted_in_edition)
+    # from_count_voted_in_edition.to_csv("from_count_voted_in_edition_refined.csv")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def cosine_dist(r1, r2):
+    from math import sqrt, isnan
+
+    dot_prod_sum = 0
+    r1_squard_L2_norm = 0
+    r2_squard_L2_norm = 0
+
+
+    for ix, first in enumerate(r1):
+        second = r2[ix]
+
+        if math.isnan(first) or math.isnan(second):
+            continue
+        
+        dot_prod_sum += (first * second)
+        r1_squard_L2_norm += first**2
+        r2_squard_L2_norm += second**2
+
+    product_of_lens = sqrt(r1_squard_L2_norm) * sqrt(r2_squard_L2_norm)
+    
+    # this means one of the vectors is a null vector
+    # and this means it is both perpendicular and colinear
+    # with the other vector. So We can choose 0, 1, or -1 as our cosine.
+    # We say they are different, so our cosine is -1.
+    if product_of_lens == 0:
+        cos = -1
+    else:
+        cos = dot_prod_sum / product_of_lens
+
+
+    return 1-cos
+
+
+
+def in_ward_sum(cluster_np, centroid_np):
+    sum = 0
+    for ix, row in enumerate(cluster_np):
+        sum += euclidean_dist(row, centroid_np)**2
+    return sum
+
+def wards_method(c1, c2, printout=False):
+    """ Arguments c1 and c2 are 2d lists: [i-th memOfClust][j-th vec value of i-th member]
+    """
+    
+    
+    c1_np = np.array(c1)
+    if c1_np.ndim == 1:
+        c1_np = c1_np.reshape(-1, 1)
+    c1_centroid = np.nanmean(c1_np, axis=0)
+
+    c2_np = np.array(c2)
+    if c2_np.ndim == 1:
+        c2_np = c2_np.reshape(-1, 1)    
+    c2_centroid = np.nanmean(c2_np, axis=0)
+
+    together = np.concatenate((c1_np, c2_np), axis=0)
+    together_centroid = np.nanmean(together, axis=0)
+
+
+    if printout:
+        print("c1")
+        print(c1)
+        print("c1_np")
+        print(c1_np)
+        print("c1_np.ndim")
+        print(c1_np.ndim)
+        print("c2_np.ndim")
+        print(c2_np.ndim)
+        print("together.ndim")
+        print(together.ndim)
+
+
+    c1_sum = in_ward_sum(c1_np, c1_centroid)
+    c2_sum = in_ward_sum(c2_np, c2_centroid)
+    together_sum = in_ward_sum(together, together_centroid)
+
+    sum = together_sum - (c1_sum + c2_sum)
+
+    # closest clusters kept returning None and crashing towards the later stages.
+    if math.isnan(sum) or sum == float("inf"):
+        sum = float('+1E30')
+
+    return sum
+
+
+def average_linkage_w_manhattan(c1, c2):
         return average_linkage(c1, c2, manhattan_dist)
 
-    hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan)
-    clusters = hc.run(data)
-    print(clusters)  # [[['c'], [['a'], ['b']]]] (or equivalent)
 
-    hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan,
-                                return_distances=True)
-    clusters = hc.run(data)
-    print(clusters)  # [[['c'], [['a'], ['b'], 2.0], 6.0]] (or equivalent)
+def average_linkage_w_cosine(c1, c2):
+    return average_linkage(c1, c2, cosine_dist)
+
+def naloga1(print_during=False, print_result=False):
+
+    import numpy as np
+    import pandas as pd
+
+    import math
+
+
+    constructed_data_df = pd.read_csv("constructed_data.csv")
+    constructed_data_df.set_index("Unnamed: 0", inplace=True)
+    constructed_data = constructed_data_df.values
+
+    col_labels = pd.read_csv("col_labels.csv").values
+
+    col_label_decomposition = pd.read_csv("col_label_decomposition.csv").values
+
+    if print_during:
+        print("constructed_data_df")
+        print(constructed_data_df)
+
+        print("constructed_data")
+        print(constructed_data)
+
+        # print("col_labels")
+        # print(col_labels)
+
+        print("col_label_decomposition")
+        print(col_label_decomposition)
+
+
+        print("\n" * 10)
+
+
+
+    
+
+    from hw1 import euclidean_dist, manhattan_dist, \
+        average_linkage, single_linkage, complete_linkage, \
+        HierarchicalClustering, silhouette, silhouette_average
+
+
+
+    # # Dosn't work:
+    # # turn to a dictionary where row incicies are keys and row values are lists
+    # constructed_data_dict = constructed_data_df.to_dict(orient="dict")
+
+    constructed_data_dict = {}
+    for ix, label in enumerate(constructed_data_df.index):
+        constructed_data_dict[label] = constructed_data[ix,:]
+
+
+
+    # print("constructed_data_dict")
+    # print(constructed_data_dict)
+
+
+
+
+
+    hc = HierarchicalClustering(cluster_dist=average_linkage_w_cosine, return_distances=True)
+    clusters = hc.run(constructed_data_dict)
+
+    if print_result:
+        print("average-cosine clusters")
+        print(clusters)
+
+
+
+
+    hc = HierarchicalClustering(cluster_dist=wards_method, return_distances=True)
+    clusters = hc.run(constructed_data_dict)
+
+    if print_result:
+        print("ward's method clusters")
+        print(clusters)
+
+
+
+    
+    hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan, return_distances=True)
+    clusters = hc.run(constructed_data_dict)
+
+    if print_result:
+        print("average_linkage_w_manhattan clusters")
+        print(clusters)
+
+
+
+
+
+    
+
+if __name__ == "__main__":
+
+
+    preprocess()
+    second_preprocess()
+    naloga1(print_result=True)
+
+
+
+    # data = {"a": [1, 2],
+    #         "b": [2, 3],
+    #         "c": [5, 5]}
+
+    # def average_linkage_w_manhattan(c1, c2):
+    #     return average_linkage(c1, c2, manhattan_dist)
+
+    # hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan)
+    # clusters = hc.run(data)
+    # print(clusters)  # [[['c'], [['a'], ['b']]]] (or equivalent)
+
+    # hc = HierarchicalClustering(cluster_dist=average_linkage_w_manhattan,
+    #                             return_distances=True)
+    # clusters = hc.run(data)
+    # print(clusters)  # [[['c'], [['a'], ['b'], 2.0], 6.0]] (or equivalent)
