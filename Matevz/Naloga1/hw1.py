@@ -432,7 +432,7 @@ def silhouette_average(data, clusters, dist_fn=cosine_dist):
 
 
 
-def preprocess(printout=False):
+def preprocess(years_tuple, jury_or_tele="T", self_vote_filler=float("nan"), printout=False):
 
 
     import pandas as pd
@@ -520,7 +520,7 @@ def preprocess(printout=False):
 
 
 
-    acceptable_editions = [str(i) + "f" for i in range(1992,2024)]
+    acceptable_editions = [str(i) + "f" for i in range(years_tuple[0], years_tuple[1])]
     # print("acceptable_editions")
     # print(acceptable_editions)
 
@@ -532,6 +532,11 @@ def preprocess(printout=False):
 
     for edition in acceptable_editions:
         is_curr_edition = raw_data_np[:, 2] == edition
+        is_jury_or_tele = raw_data_np[:, 3] == jury_or_tele
+        is_both = is_curr_edition & is_jury_or_tele
+        # print("is_both")
+        # print(is_both)
+
         acc_edition2data_np[edition] = raw_data_np[is_curr_edition, :]
 
     if printout:
@@ -573,6 +578,15 @@ def preprocess(printout=False):
 
 
 
+
+
+
+
+
+
+
+
+
     # fills it with NaNs
     constructed_data = pd.DataFrame(float('nan'), index=from_countries, columns=to_country_and_edition_pairs)
 
@@ -587,8 +601,13 @@ def preprocess(printout=False):
             
             from_country = row[from_country_col_ix]
             to_country = row[to_country_col_ix]
-
             to_country_and_edition_pair = to_country + edition
+
+            # We usually make this NaN, because it is not a valid vote.
+            if from_country.lower() == to_country.lower():
+                constructed_data.loc[from_country, to_country_and_edition_pair] = self_vote_filler
+                continue
+
             points = row[points_ix]
 
             if not math.isnan(points):
@@ -637,7 +656,7 @@ def preprocess(printout=False):
 
 
 
-def second_preprocess(printout=False):
+def second_preprocess(L2_normalize=False, printout=False):
 
     import numpy as np
     import pandas as pd
@@ -843,6 +862,25 @@ def second_preprocess(printout=False):
     # print(row_labels.T)
     # print("from_count_voted_in_edition")
     # print(from_count_voted_in_edition)
+    
+
+
+
+
+
+    # L2 normalize the columns of constructed_data ignoring NaNs
+    if L2_normalize:
+        for i in range(constructed_data.shape[1]):
+            col = constructed_data[:, i]
+            col = col[~np.isnan(col)]
+
+            if col.size == 0:
+                continue
+
+            col = col**2
+            vec_length = math.sqrt(np.mean(col))
+            constructed_data[:, i] = constructed_data[:, i] / vec_length
+        
 
 
 
@@ -1033,7 +1071,7 @@ def show_silhouette(all_cluster_combinations, constructed_data_dict, dist_fn, si
     import matplotlib.cm as cm
 
 
-    plt.xlim([-1.0, 1.0])
+    plt.xlim([-0.2, 1.0])
     
     razmik = 15
     # Inserting blank space between silhouette
@@ -1055,7 +1093,9 @@ def show_silhouette(all_cluster_combinations, constructed_data_dict, dist_fn, si
 
     plt.title("Silhouette plot for " + dist_linkage_name + " for" + str_bound_years + ". Using: " + silho_dist_name + ".")
     plt.xlabel("Silhouette coefficient values")
-    plt.xticks([-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1])
+    plt.xticks([-0.2, 0, 0.2, 0.4, 0.6, 0.8, 1])
+    # plt.xticks([-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1])
+
     plt.yticks([])  # Clear the yaxis labels
     plt.show()
     
@@ -1069,7 +1109,7 @@ def show_silhouette(all_cluster_combinations, constructed_data_dict, dist_fn, si
     # print(list_of_keys_from_tree_of_lists(final_clusters))
 
 
-def naloga1(print_during=False, print_result=False, only_testing=False):
+def naloga1(params, print_during=False, print_result=False, only_testing=False):
 
     import numpy as np
     import pandas as pd
@@ -1143,11 +1183,12 @@ def naloga1(print_during=False, print_result=False, only_testing=False):
     hc = HierarchicalClustering(cluster_dist=average_linkage_w_cosine, return_distances=True)
     final_clusters, scipy_mat, countries, max_dist, all_cluster_combinations = hc.run(constructed_data_dict, make_scipy_mat=True)
 
-    print(max_dist)
+    # print(max_dist)
 
-    show_dendrogram(scipy_mat, countries, 0.467, "Cosine distance", "average linkage", "1992-2023")
+    years_tuple = params["years_tuple"]
+    show_dendrogram(scipy_mat, countries, params["cos_cutoff"], "Cosine distance", "average linkage", str(years_tuple))
 
-    show_silhouette(all_cluster_combinations, constructed_data_dict, cosine_dist, "cosine_dist", "average_linkage_w_cosine", "1992-2023",  num_of_clusts=9, printout=True)
+    show_silhouette(all_cluster_combinations, constructed_data_dict, cosine_dist, "cosine_dist", "average_linkage_w_cosine", str(years_tuple),  num_of_clusts=params["num_of_clusts_cos"], printout=False)
 
     if print_result:
         print("average-cosine clusters")
@@ -1160,11 +1201,11 @@ def naloga1(print_during=False, print_result=False, only_testing=False):
     final_clusters, scipy_mat, countries, max_dist, all_cluster_combinations = hc.run(constructed_data_dict, make_scipy_mat=True)
 
 
-    show_dendrogram(scipy_mat, countries, 9450, "Ward's method", "Ward's method", "1992-2023")
+    show_dendrogram(scipy_mat, countries, params["ward_cutoff"], "Ward's method", "Ward's method", str(years_tuple))
 
-    show_silhouette(all_cluster_combinations, constructed_data_dict, euclidean_dist, "euclidean_dist", "Ward's method", "1992-2023", num_of_clusts=10, printout=True)
+    show_silhouette(all_cluster_combinations, constructed_data_dict, euclidean_dist, "euclidean_dist", "Ward's method", str(years_tuple), num_of_clusts=params["num_of_clusts_ward"], printout=False)
 
-    print(max_dist)
+    # print(max_dist)
 
     if print_result:
         print("ward's method clusters")
@@ -1233,9 +1274,69 @@ if __name__ == "__main__":
     except OSError as error:
         _ = "do nothing, all working as intended." 
 
-    # preprocess()
-    # second_preprocess()
-    naloga1(print_result=True, only_testing=False)
+    # years_tuple = (1992, 2023)
+    # years_tuple = (2016, 2023)
+    params_dict_1 = {
+        "years_tuple" : (1992, 2023),
+        
+        "L2_normalize": False,
+
+        "jury_or_tele": "T",
+        "self_vote_filler":float("nan"),
+
+        "num_of_clusts_cos" : 8,
+        "cos_cutoff": 0.467,
+        "num_of_clusts_ward" : 11,
+        "ward_cutoff": 9450
+    }
+
+    params_dict_2 = {
+        "years_tuple" : (2016, 2023),
+
+        "L2_normalize": False,
+
+        "jury_or_tele": "T",
+        "self_vote_filler":float("nan"),
+
+        "num_of_clusts_cos" : 5,
+        "cos_cutoff": 0.385,
+        "num_of_clusts_ward" : 7,
+        "ward_cutoff": 1800
+    }
+
+    params_dict_3 = {
+        "years_tuple" : (1992, 2023),
+        
+        "L2_normalize": True,
+
+        "jury_or_tele": "T",
+        "self_vote_filler":float("nan"),
+
+        "num_of_clusts_cos" : 10,
+        "cos_cutoff": 0.467,
+        "num_of_clusts_ward" : 9,
+        "ward_cutoff": 9450
+    }
+
+    params_dict_4 = {
+        "years_tuple" : (2016, 2023),
+
+        "L2_normalize": True,
+
+        "jury_or_tele": "T",
+        "self_vote_filler":float("nan"),
+
+        "num_of_clusts_cos" : 5,
+        "cos_cutoff": 0.385,
+        "num_of_clusts_ward" : 7,
+        "ward_cutoff": 1800
+    }
+    
+    params = params_dict_2
+
+    preprocess(params["years_tuple"], params["jury_or_tele"], params["self_vote_filler"])
+    second_preprocess(params["L2_normalize"])
+    naloga1(params, print_result=False, only_testing=False)
 
 
 
