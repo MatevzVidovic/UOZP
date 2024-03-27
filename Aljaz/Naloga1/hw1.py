@@ -5,8 +5,6 @@ from scipy.cluster.hierarchy import dendrogram
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
-clusters_num = 0
-
 def manhattan_dist(r1, r2):
     # """ Arguments r1 and r2 are lists of numbers """
     count_nan = 0
@@ -242,6 +240,11 @@ def silhouette_average(data, clusters):
     return silhouette_sum / len(data)
 
 
+    Z = ward(pdist(y))
+
+
+    dendrogram(Z, labels=data.keys())
+
 def prepare_profile():
     df = pd.read_excel("eurovision_song_contest_1957_2023.xlsx")
 
@@ -263,16 +266,22 @@ def prepare_profile():
     # Delete rows with From country "Rest of the World" - not enough data
     df = df[df["From country"] != "Rest of the World"]
 
-    # Change all "F.Y.R. Macedonia" to "North Macedonia"
+    # Rename "F.Y.R. Macedonia" to "North Macedonia"
     df["From country"] = df["From country"].replace("F.Y.R. Macedonia", "North Macedonia")
     df["To country"] = df["To country"].replace("F.Y.R. Macedonia", "North Macedonia")
+
+    # Rename "Yugoslavia" to "Serbia"
+    df["From country"] = df["From country"].replace("Yugoslavia", "Serbia")
+    df["To country"] = df["To country"].replace("Yugoslavia", "Serbia")
 
     # Bosnia and Herzegovina and Montenegro didn't get to the finals from 2016 to 2023 
 
     # In 2016 voting system changed, from mixed system to two separate systems: jury and televoting and delete the column "Year"
-    df_before_2016 = df[df.Year <= 2016]
+    df_before_2016 = df[df.Year < 2016]
+    # df_before_2016 = df_before_2016[df_before_2016.Year >= 1985]
     df_after_2016 = df[df.Year >= 2016]
     df_after_2016 = df_after_2016.drop(columns=["Year"])
+    df_before_2016 = df_before_2016.drop(columns=["Year"])
 
     # Divide the data into two dataframes: one for jury votes and one for televoting and delete the column "Jury or Televoting"
     df_jury = df_after_2016[df_after_2016["Jury or Televoting"] == "J"]
@@ -290,7 +299,7 @@ def prepare_profile():
     # df_televoting_avg.to_excel("eurovision_song_contest_2016_2023_avg.xlsx")
 
     # Count how many times each pair of From country and To country voted
-    df_televoting_cnt = df_televoting.groupby(["From country", "To country"]).count()
+    # df_televoting_cnt = df_televoting.groupby(["From country", "To country"]).count()
     # df_televoting_cnt.to_excel("eurovision_song_contest_2016_2023_cnt.xlsx")
 
     # Make a matrix: From country are the names of the rows and To country are the names of the columns
@@ -309,6 +318,7 @@ def prepare_profile():
     # Get top five countries that country voted higest points to
     # country = "Slovenia"
     # print(df_televoting_avg.loc[country].sort_values(ascending=False).head(5))
+    df_matrix = df_televoting_avg.copy()
                 
     # Make a dict from the dataframe with From country as the key and values as a list of distances to To countries
     # Drop the first level of columns "Points"
@@ -390,10 +400,56 @@ def prepare_profile():
     # '''
 
     # BEFORE 2016
+    ''' 
+    # Calculate average points for each pair of From country and To country
+    df_before_2016_avg = df_before_2016.groupby(["From country", "To country"]).mean()
+    # df_before_2016_avg.to_excel("eurovision_song_contest_2016_2023_avg.xlsx")
+
+    # Make a matrix: From country are the names of the rows and To country are the names of the columns
+    df_before_2016_avg = df_before_2016_avg.unstack(level=-1)
     
+    # Go over all values: if From country and To country are the same, set the distance to nan; else if the value is nan, set it to 0
+    for i in range(len(df_before_2016_avg)):
+        for j in range(len(df_before_2016_avg.columns)):
+            if df_before_2016_avg.index[i] == df_before_2016_avg.columns[j][1]:
+                df_before_2016_avg.iat[i, j] = math.nan
+            elif math.isnan(df_before_2016_avg.iat[i, j]):
+                df_before_2016_avg.iat[i, j] = 0
+
+    # df_before_2016_avg.to_excel("eurovision_song_contest_2016_2023_matrix.xlsx")
+                
+    # Get top five countries that country voted higest points to
+    # country = "Slovenia"
+    # print(df_before_2016_avg.loc[country].sort_values(ascending=False).head(5))
+    # Get top five countries that country voted lowest points to
+    # print(df_before_2016_avg.loc[country].sort_values(ascending=True).head(5))
+                
+    # Make a dict from the dataframe with From country as the key and values as a list of distances to To countries
+    # Drop the first level of columns "Points"
+    df_before_2016_avg.columns = df_before_2016_avg.columns.droplevel()
+    # Transpose the dataframe for correct data structure
+    df_before_2016_avg = df_before_2016_avg.transpose()
+    data = df_before_2016_avg.to_dict()
+    for key in data:
+        data[key] = list(data[key].values())
+    
+    # Normalize data by rows
+    # for key in data:
+    #     # max have to ignore nan values
+    #     max_value = max([x for x in data[key] if not math.isnan(x)])
+    #     for i in range(len(data[key])):
+    #         data[key][i] = data[key][i] / max_value
+
+    # Normalize data by columns
+    # for i in range(len(data[list(data.keys())[0]])):
+    #     max_value = max([data[key][i] for key in data if not math.isnan(data[key][i])])
+    #     for key in data:
+    #         data[key][i] = data[key][i] / max_value
+
+    # '''
 
 
-    return data
+    return data, df_matrix
 
 def run_hc(data, construct_Z=False):
     def average_linkage_w_euclidean(c1, c2):
@@ -510,11 +566,13 @@ def best_silhoutte(all_clusters, data):
 
     return len(best_clusters)
 
-def dendrogram_scipy(Z, names):
+def dendrogram_scipy(Z, names, n_clusters=5):
+    # Get coloring distance for n_clusters
+    color_threshold = Z[-n_clusters + 1][2]
 
     plt.figure(figsize=(8, 6))
-    dendrogram(Z, labels=names, color_threshold=0.34)
-    plt.title("Eurovison voting since 2016 - televoting (complete linkage with cosine distance)")
+    dendrogram(Z, labels=names, color_threshold=color_threshold, leaf_font_size=10)
+    plt.title("Eurovision voting since 2016 - televoting (complete linkage with cosine distance)")
     plt.xlabel("Country")
     plt.ylabel("Distance")
     plt.show()
@@ -526,7 +584,7 @@ def silhouette_graph(all_clusters, data, n_clusters=5):
             clusters = cluster
             break
         
-    plt.xlim([-0.2, 1.0])
+    plt.xlim([-0.2, 0.8])
         
     # Inserting blank space between silhouette
     plt.ylim([0, 44 + (n_clusters + 1) * 10])
@@ -562,7 +620,7 @@ def silhouette_graph(all_clusters, data, n_clusters=5):
         # Plot each silhouette value and add country name and make ploted line thicker
         for j in range(len(ith_cluster_silhouette_values)):
             plt.plot([0, ith_cluster_silhouette_values[j][0]], [j + y_lower, j + y_lower], color=color, linewidth=3)
-            plt.text(-0.15, j + y_lower + 0.05, ith_cluster_silhouette_values[j][1])
+            plt.text(-0.15, j + y_lower + 0.1, ith_cluster_silhouette_values[j][1], fontsize=10)
 
         # Compute the new y_lower for next plot
         y_lower = y_upper + 10  # 10 for the 0 samples
@@ -577,28 +635,64 @@ def silhouette_graph(all_clusters, data, n_clusters=5):
 
 
     plt.yticks([])  # Clear the yaxis labels / ticks
-    plt.xticks([-0.2, 0, 0.2, 0.4, 0.6, 0.8, 1])
+    plt.xticks([-0.2, 0, 0.2, 0.4, 0.6, 0.8])
 
     plt.show()
 
+def preferred_countries(n_clusters, all_clusters, df_matrix):
+    for cluster in all_clusters:
+        if len(cluster) == n_clusters:
+            clusters = cluster
+            break
 
-# Prepare the data
-data = prepare_profile()
+    flattened_clusters = []
+    for cluster in clusters:
+        flattened_clusters.append(flatten_clusters(cluster))
 
-# Draw dendrogram in a terminal
-# clusters = run_hc(data)
-# dendrogram(clusters)
+    for i in range(n_clusters):
+        if len(flattened_clusters[i]) == 1:
+            continue
 
-# Make dendrogram with scipy package
-Z, names, all_clusters = run_hc(data, construct_Z=True)
-dendrogram_scipy(Z, names)
-
-# Make silhouette graph
-silhouette_graph(all_clusters, data, n_clusters=10)
+        cluster = flattened_clusters[i]
+        print(f"CLUSTER {', '.join(cluster)}")
 
 
-# TODO
-# - ward
-# - vec podatkov
-# - preferirane drzave
+        # For each cluster find countries that are the same in top 5 for all countries in the cluster
+        top_5 = []
+        for country in cluster:
+            top_5.append(set(df_matrix.loc[country].sort_values(ascending=False).head(5).index))
+        common = set.intersection(*top_5)
+        print(f"Intersection of the top 5:")
+        print([x[1] for x in common])
 
+        # For each cluster find countries that are the same in lowest 5 for all countries in the cluster
+        lowest_5 = []
+        for country in cluster:
+            lowest_5.append(set(df_matrix.loc[country].sort_values(ascending=True).head(5).index))
+        common = set.intersection(*lowest_5)
+        print(f"Intersection of the lowest 5:")
+        print([x[1] for x in common])
+        print()
+
+
+if __name__ == "__main__":
+    # Prepare the data
+    data, df_matrix = prepare_profile()
+
+    # Draw dendrogram in a terminal
+    # clusters_num = 0 # global counter
+    # clusters = run_hc(data)
+    # dendrogram(clusters)
+
+    # Set number of clusters
+    n_clusters = 15
+
+    # Make dendrogram with scipy package
+    Z, names, all_clusters = run_hc(data, construct_Z=True)
+    dendrogram_scipy(Z, names, n_clusters)
+
+    # Make silhouette graph
+    silhouette_graph(all_clusters, data, n_clusters=n_clusters)
+
+    # Get preferred and non-preferred countries
+    preferred_countries(n_clusters, all_clusters, df_matrix)
