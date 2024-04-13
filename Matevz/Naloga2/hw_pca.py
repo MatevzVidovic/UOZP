@@ -150,14 +150,21 @@ class PCA:
 
         X = X - self.centroid
 
-        # print(5*"\n")
-        # print("self.eigenvectors")
-        # print(self.eigenvectors)
-        # print("self.eigenvectors.shape")
-        # print(self.eigenvectors.shape)
-        # print(5*"\n")
+        # E is a matrix with eigenvectors as columns
+        E = np.array(self.eigenvectors).T
+
+        print(5*"\n")
+        print("self.eigenvectors")
+        print(self.eigenvectors)
+        print("self.eigenvectors.shape")
+        print(self.eigenvectors.shape)
+        print("E")
+        print(E)
+        print("E.shape")
+        print(E.shape)
+        print(5*"\n")
         
-        return X @ self.eigenvectors
+        return X @ E
         
 
     def get_explained_variance(self):
@@ -202,7 +209,11 @@ class PCA:
             Transformed data in original space with
             the shape (n_samples, n_components).
         """
-        X = X @ self.eigenvectors.T
+        
+        # E is a matrix with eigenvectors as columns
+        E = np.array(self.eigenvectors).T
+
+        X = X @ E.T
 
         return X + self.centroid
     
@@ -266,6 +277,7 @@ if __name__ == "__main__":
 
     create_important_keywords_file = False
     do_tfidf = False
+    fit_PCA = False
     printout = True
 
     if create_important_keywords_file:
@@ -402,16 +414,10 @@ if __name__ == "__main__":
 
 
 
-
-
-
-
-
-
     articles_tfidf = articles_tfidf_sparse_loaded.toarray()
-    # Print the TF-IDF matrix
-    print("articles_tfidf.shape")
-    print(articles_tfidf.shape)
+    # Print the TF-IDF matrix shape
+    # print("articles_tfidf.shape")
+    # print(articles_tfidf.shape)
 
     # Now articles are the rows and the keywords are the columns
     # This is in line with how we built the PCA
@@ -419,33 +425,54 @@ if __name__ == "__main__":
 
 
 
-    PCA_model = PCA(n_components=3)
-    PCA_model.fit(articles_tfidf)
+
+    if fit_PCA:
+
+        PCA_model = PCA(n_components=3)
+        PCA_model.fit(articles_tfidf)
+
+        with open("data/PCA_model.pkl", 'wb') as file:
+            pickle.dump(PCA_model, file)
+
+
+    # Load the list of objects from the file
+    with open("data/PCA_model.pkl", 'rb') as file:
+        PCA_model = pickle.load(file)
+
+
+
+
+
+    
+    
+
+
+
+
     articles_tfidf_transformed = PCA_model.transform(articles_tfidf)
 
     print("articles_tfidf_transformed")
     print(articles_tfidf_transformed)
 
-    if False:
+    if True:
         # use vispy to plot the data in 3D
-        import vispy
-        import vispy.scene
-        import vispy.visuals
-        import vispy.app
+        from vispy import scene, app #, visuals
 
-        canvas = vispy.scene.SceneCanvas(keys='interactive', show=True)
+        # canvas = scene.SceneCanvas(keys='interactive', show=True, app='pyqt5')
+        # canvas = scene.SceneCanvas(keys='interactive', show=True, app='egl')
+        canvas = scene.SceneCanvas(keys='interactive', show=True, app='pyqt6')
+        # canvas = scene.SceneCanvas(keys='interactive', show=True)
+
         view = canvas.central_widget.add_view()
-        scatter = vispy.visuals.Markers()
+
+        scatter = scene.visuals.Markers()
         scatter.set_data(articles_tfidf_transformed, edge_color=None, face_color=(1, 1, 1, .5), size=5)
         view.add(scatter)
-        vispy.app.run()
 
-        # print(PCA_model.get_explained_variance())
-        # print(PCA_model.inverse_transform(articles_tfidf_transformed))
-        # print(PCA_model.transform(articles_tfidf))
-        # print(PCA_model.get_explained_variance())
-        # print(PCA_model.inverse_transform(articles_tfidf_transformed))
-        # print(PCA_model.transform(articles_tfidf))
+        view.camera = 'turntable'
+        canvas.show()
+        # print("here")
+        app.run()
 
 
 
