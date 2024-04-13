@@ -153,16 +153,16 @@ class PCA:
         # E is a matrix with eigenvectors as columns
         E = np.array(self.eigenvectors).T
 
-        print(5*"\n")
-        print("self.eigenvectors")
-        print(self.eigenvectors)
-        print("self.eigenvectors.shape")
-        print(self.eigenvectors.shape)
-        print("E")
-        print(E)
-        print("E.shape")
-        print(E.shape)
-        print(5*"\n")
+        # print(5*"\n")
+        # print("self.eigenvectors")
+        # print(self.eigenvectors)
+        # print("self.eigenvectors.shape")
+        # print(self.eigenvectors.shape)
+        # print("E")
+        # print(E)
+        # print("E.shape")
+        # print(E.shape)
+        # print(5*"\n")
         
         return X @ E
         
