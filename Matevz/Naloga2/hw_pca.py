@@ -72,9 +72,12 @@ class PCA:
             # A je tole ziher rpov?
             # M = M - lambda_max * np.outer(e_max, e_max)
 
+            """
+            # This is supposed to make the eigenvectors orthogonal
+            # I think it is not working as intended
             for col_ix in range(M.shape[1]):
                 M[:, col_ix] = M[:, col_ix] - np.dot(e_max, M[:, col_ix]) * e_max # * lambda_max
-
+            """
         # Dovimo eigenvectorje kot vrstice.
         self.eigenvectors = np.array(self.eigenvectors)
         self.eigenvalues = np.array(self.eigenvalues)
@@ -83,7 +86,14 @@ class PCA:
         # print("self.eigenvectors")
         # print(self.eigenvectors)
         # print(5*"\n")
-        
+    
+    def _orthogonalise(self, eigenvec: np.ndarray) -> np.ndarray:
+        eigenvec_to_return = eigenvec.copy()
+        for vec in self.eigenvectors:
+            # print("np.dot(eigenvec, vec)")
+            # print(np.dot(eigenvec, vec))
+            eigenvec_to_return = eigenvec_to_return - np.dot(eigenvec_to_return, vec) * vec
+        return eigenvec_to_return
 
     def potencna_metoda(self, M: np.ndarray) -> tuple:
         """
@@ -110,12 +120,21 @@ class PCA:
         # print(5*"\n")
 
         e_max = np.random.rand(M.shape[0])
+        # print("e_max")
+        # print(e_max)
+        # self._orthogonalise(e_max)
+        # print("e_max")
+        # print(e_max)
+        e_max = self._orthogonalise(e_max)
+        # print("e_max")
+        # print(e_max)
         e_max = e_max / np.linalg.norm(e_max)
         lambda_max = 0
 
         for _ in range(self.max_iterations):
 
             e_max_next =  M @ e_max
+            e_max_next = self._orthogonalise(e_max_next)
             lambda_max_next = np.linalg.norm(e_max_next)
             e_max_next = e_max_next / lambda_max_next
 
@@ -315,6 +334,10 @@ if __name__ == "__main__":
         # Process the YAML data
         for item in yaml_data:
             gpt_keywords = item.get('gpt_keywords', [])
+            
+            for ix, keyword in enumerate(gpt_keywords):
+                gpt_keywords[ix] = keyword.lower()
+                
             title = item.get('title', '')
             url = item.get('url', '')
 
