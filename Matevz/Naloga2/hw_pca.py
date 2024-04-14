@@ -284,7 +284,7 @@ class Keywords:
 
 if __name__ == "__main__":
 
-    KEYWORDS_AND_TFIDF = True
+    KEYWORDS_AND_TFIDF = False
     FIT_PCA = True
     PRINTOUT = True
 
@@ -311,9 +311,6 @@ if __name__ == "__main__":
         
         for article in articles:
             article.keep_only_acceptable_keywords(acceptable_keywords)
-
-        keywords = Keywords()
-        keywords.add_article_keywords(articles)
 
 
 
@@ -393,8 +390,8 @@ if __name__ == "__main__":
 
         # canvas = scene.SceneCanvas(keys='interactive', show=True, app='pyqt5')
         # canvas = scene.SceneCanvas(keys='interactive', show=True, app='egl')
-        canvas = scene.SceneCanvas(keys='interactive', show=True, app='pyqt6')
-        # canvas = scene.SceneCanvas(keys='interactive', show=True)
+        # canvas = scene.SceneCanvas(keys='interactive', show=True, app='pyqt6')
+        canvas = scene.SceneCanvas(keys='interactive', show=True)
 
         view = canvas.central_widget.add_view()
 
