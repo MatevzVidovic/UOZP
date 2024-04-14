@@ -2,6 +2,10 @@ import numpy as np
 import yaml
 import os
 import pickle
+from timeit import default_timer as timer
+
+
+PRINTOUT = True
 
 class PCA:
     def __init__(
@@ -116,11 +120,13 @@ class PCA:
             e_max_next = e_max_next / lambda_max_next
 
             # cond_1 = np.abs(lambda_max_next - lambda_max) < self.tolerance
-            # cond_2 = np.linalg.norm(e_max_next - e_max) < self.tolerance
-            # if cond_2 and cond_1:
-            #     e_max = e_max_next
-            #     lambda_max = lambda_max_next
-            #     break
+            cond_2 = np.linalg.norm(e_max_next - e_max) < self.tolerance
+            if cond_2:
+                e_max = e_max_next
+                lambda_max = lambda_max_next
+                if PRINTOUT:
+                    print("tolerance reached")
+                break
 
             e_max = e_max_next
             lambda_max = lambda_max_next
@@ -284,9 +290,19 @@ class Keywords:
 
 if __name__ == "__main__":
 
-    KEYWORDS_AND_TFIDF = False
+    start = timer()
+
+    KEYWORDS_AND_TFIDF = True
     FIT_PCA = True
-    PRINTOUT = True
+    DATA_STORE = False
+    
+    """
+    If this is True, we will load the data from the file.
+    So if e.g. KEYWORDS_AND_TFIDF is True, but DATA_STORE is false,
+    we will end up overriding what KEYWORDS_AND_TFIDF did
+    when we load the data from the file.""" 
+    DATA_LOAD = False
+    
 
     if KEYWORDS_AND_TFIDF:
         # Open the YAML file and load its contents
@@ -330,44 +346,54 @@ if __name__ == "__main__":
                 keyword_count = article.gpt_keywords.count(keyword)
                 tf = keyword_count / len(article.gpt_keywords)
                 articles_tfidf[keyword_ix, article_ix] = tf * acceptable_keywords_idf[keyword_ix]
+        
+        if DATA_STORE:        
+            with open("data/articles_tfidf.pkl", 'wb') as file:
+                pickle.dump(articles_tfidf, file)
+
+
+    if DATA_LOAD:
+        with open("data/articles_tfidf.pkl", 'rb') as file:
+            articles_tfidf_loaded = pickle.load(file)
+
+            if KEYWORDS_AND_TFIDF and PRINTOUT:
+                print(5*"\n")
+                print("np.array_equal(articles_tfidf, articles_tfidf_loaded)")
+                print(np.array_equal(articles_tfidf, articles_tfidf_loaded))
+                print(5*"\n")
                 
-        with open("data/articles_tfidf.pkl", 'wb') as file:
-            pickle.dump(articles_tfidf, file)
-
-
-    with open("data/articles_tfidf.pkl", 'rb') as file:
-        articles_tfidf_loaded = pickle.load(file)
-
+            articles_tfidf = articles_tfidf_loaded
     
-    if KEYWORDS_AND_TFIDF:
-        print(5*"\n")
-        print("articles_tfidf == articles_tfidf_loaded")
-        print(articles_tfidf == articles_tfidf_loaded)
-        print(5*"\n")
-        
-        
-
-
-    articles_tfidf = articles_tfidf_loaded
+    
+    
+    
     articles_tfidf = articles_tfidf.T
     # Now articles are the rows and the keywords are the columns
     # This is in line with how we built the PCA
+
+    if PRINTOUT:
+        print(5*"\n")
+        print("articles_tfidf")
+        print(articles_tfidf)
+        print(5*"\n")
 
 
 
 
     if FIT_PCA:
 
-        PCA_model = PCA(n_components=3)
+        PCA_model = PCA(n_components=3, max_iterations=1000, tolerance=1e-7, rnd_seed=0)
         PCA_model.fit(articles_tfidf)
 
-        with open("data/PCA_model.pkl", 'wb') as file:
-            pickle.dump(PCA_model, file)
+        if DATA_STORE:
+            with open("data/PCA_model.pkl", 'wb') as file:
+                pickle.dump(PCA_model, file)
 
 
-    # Load the list of objects from the file
-    with open("data/PCA_model.pkl", 'rb') as file:
-        PCA_model = pickle.load(file)
+    if DATA_LOAD:
+        # Load the list of objects from the file
+        with open("data/PCA_model.pkl", 'rb') as file:
+            PCA_model = pickle.load(file)
 
 
 
@@ -381,28 +407,69 @@ if __name__ == "__main__":
 
     articles_tfidf_transformed = PCA_model.transform(articles_tfidf)
 
-    print("articles_tfidf_transformed")
-    print(articles_tfidf_transformed)
+    if PRINTOUT:
+        print(5*"\n")
+        print("articles_tfidf_transformed")
+        print(articles_tfidf_transformed)
 
-    if True:
-        # use vispy to plot the data in 3D
-        from vispy import scene, app #, visuals
 
-        # canvas = scene.SceneCanvas(keys='interactive', show=True, app='pyqt5')
-        # canvas = scene.SceneCanvas(keys='interactive', show=True, app='egl')
-        # canvas = scene.SceneCanvas(keys='interactive', show=True, app='pyqt6')
-        canvas = scene.SceneCanvas(keys='interactive', show=True)
 
-        view = canvas.central_widget.add_view()
+    # use vispy to plot the data in 3D
+    from vispy import scene, app #, visuals
 
-        scatter = scene.visuals.Markers()
-        scatter.set_data(articles_tfidf_transformed, edge_color=None, face_color=(1, 1, 1, .5), size=5)
-        view.add(scatter)
+    # canvas = scene.SceneCanvas(keys='interactive', show=True, app='pyqt5')
+    # canvas = scene.SceneCanvas(keys='interactive', show=True, app='egl')
+    # canvas = scene.SceneCanvas(keys='interactive', show=True, app='pyqt6')
+    canvas = scene.SceneCanvas(keys='interactive', show=True)
 
-        view.camera = 'turntable'
-        canvas.show()
-        # print("here")
-        app.run()
+    view = canvas.central_widget.add_view()
+
+    scatter = scene.visuals.Markers()
+    scatter.set_data(articles_tfidf_transformed, edge_color=None, face_color=(1, 1, 1, .5), size=5)
+    view.add(scatter)
+
+    view.camera = 'turntable'
+    canvas.show()
+
+    end = timer()
+    if PRINTOUT:
+        print(5*"\n")
+        print("Elapsed time in seconds:")
+        print(end - start)
+    # print("here")
+
+    print(5*"\n")
+    print("PCA_model.get_explained_variance()")
+    print(PCA_model.get_explained_variance())
+
+
+    # Test for what the eigenvectors are
+    for i in range(3):
+        print(PCA_model.eigenvectors[i])
+        to_sort = [(ix, val) for ix, val in enumerate(PCA_model.eigenvectors[i])]
+        sorted_list = sorted(to_sort, key= lambda a: a[1], reverse=True)
+        best_10 = sorted_list[:10]
+        next_10 = sorted_list[10:20]
+        print(5*"\n")
+        print(f"PCA_model.eigenvectors[{i}]")
+        print("best_10")
+        print(best_10)
+        print("next_10")
+        print(next_10)
+
+        best_10_keywords = [acceptable_keywords[ix] for ix, _ in best_10]
+        next_10_keywords = [acceptable_keywords[ix] for ix, _ in next_10]
+        print("best_10_keywords")
+        print(best_10_keywords)
+        print("next_10_keywords")
+        print(next_10_keywords)
+
+
+    
+
+
+
+    app.run()
 
 
 
