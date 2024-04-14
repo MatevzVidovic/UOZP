@@ -222,6 +222,10 @@ class PCA:
 
 
 class Article:
+
+    def keep_only_acceptable_keywords(self, acceptable_keywords_list):
+        self.gpt_keywords = [keyword for keyword in self.gpt_keywords if keyword in acceptable_keywords_list]
+
     def __init__(self, title, url, gpt_keywords):
         self.title = title
         self.url = url
@@ -242,45 +246,49 @@ class Article:
 class Keywords:
 
     def __init__(self):
-        self.keyword2count = dict()
+        self.keyword2article_count = dict()
     
     def __eq__(self, value: object) -> bool:
-        return self.keyword2count == value.keyword2count
+        return self.keyword2article_count == value.keyword2article_count
     
     def add_keyword(self, keyword):
 
-        if keyword not in self.keyword2count:
-            self.keyword2count[keyword] = 0
+        if keyword not in self.keyword2article_count:
+            self.keyword2article_count[keyword] = 0
 
-        self.keyword2count[keyword] += 1
+        self.keyword2article_count[keyword] += 1
     
     def add_article_keywords(self, article_list):
+
         for article in article_list:
-            for keyword in article.gpt_keywords:
+
+            keywords = set(article.gpt_keywords)
+            
+            for keyword in keywords:
                 self.add_keyword(keyword)
+        
     
     def trim_keywords(self, threshold):
 
         keywords_to_del = []
-        for keyword, count in self.keyword2count.items():
+        for keyword, count in self.keyword2article_count.items():
             if count < threshold:
                 keywords_to_del.append(keyword)
 
         for keyword in keywords_to_del: 
-            self.keyword2count.pop(keyword)
+            self.keyword2article_count.pop(keyword)
     
     # def get_keywords(self):
-    #     return list(self.keyword2count.keys())
+    #     return list(self.keyword2article_count.keys())
 
 
 if __name__ == "__main__":
 
-    create_important_keywords_file = False
-    do_tfidf = False
-    fit_PCA = False
-    printout = True
+    KEYWORDS_AND_TFIDF = True
+    FIT_PCA = True
+    PRINTOUT = True
 
-    if create_important_keywords_file:
+    if KEYWORDS_AND_TFIDF:
         # Open the YAML file and load its contents
         with open("rtvslo.yaml", 'r') as yaml_file:
             yaml_data = yaml.safe_load(yaml_file)
@@ -299,134 +307,59 @@ if __name__ == "__main__":
         keywords = Keywords()
         keywords.add_article_keywords(articles)
         keywords.trim_keywords(20)
-        acceptable_keywords = list(keywords.keyword2count.keys())
+        acceptable_keywords = list(keywords.keyword2article_count.keys())
         
-        article_keywords_list = []
         for article in articles:
-            article_keywords = [keyword for keyword in article.gpt_keywords if keyword in acceptable_keywords]
-            article_keywords_list.append(" ".join(article_keywords))
+            article.keep_only_acceptable_keywords(acceptable_keywords)
+
+        keywords = Keywords()
+        keywords.add_article_keywords(articles)
 
 
+
+        articles_tfidf = np.zeros((len(acceptable_keywords), len(articles)))
         
-
-
-        try:
-            os.mkdir("data")
-        except:
-            pass
+        acceptable_keywords_idf = []
+        for keyword in acceptable_keywords:
+            article_count = keywords.keyword2article_count[keyword]
+            idf = np.log(len(articles) / (article_count+1))
+            acceptable_keywords_idf.append(idf)
         
+        for article_ix, article in enumerate(articles):
 
-        
-        with open("data/article_keywords_list.pkl", 'wb') as file:
-            pickle.dump(article_keywords_list, file)
+            article_keywords = set(article.gpt_keywords)
+            for keyword in article_keywords:
+                keyword_ix = acceptable_keywords.index(keyword)
+                keyword_count = article.gpt_keywords.count(keyword)
+                tf = keyword_count / len(article.gpt_keywords)
+                articles_tfidf[keyword_ix, article_ix] = tf * acceptable_keywords_idf[keyword_ix]
+                
+        with open("data/articles_tfidf.pkl", 'wb') as file:
+            pickle.dump(articles_tfidf, file)
 
 
-    # Load the list of objects from the file
-    with open("data/article_keywords_list.pkl", 'rb') as file:
-        article_keywords_list_loaded = pickle.load(file)
+    with open("data/articles_tfidf.pkl", 'rb') as file:
+        articles_tfidf_loaded = pickle.load(file)
+
     
-    if create_important_keywords_file:
-        print("article_keywords_list_loaded")
-        print(article_keywords_list_loaded)
-        print("article_keywords_list_loaded == article_keywords_list")
-        print(article_keywords_list_loaded == article_keywords_list)
-
-
-
-        """
-        # If you go about saving the dictionary, which doesn't work for tf_idf then:
-        
-        with open("data/keywords_object.pkl", 'wb') as file:
-            pickle.dump(keywords, file)
-
-
-    # Load the list of objects from the file
-    with open("data/keywords_object.pkl", 'rb') as file:
-        important_keywords_loaded = pickle.load(file)
-        assert type(important_keywords_loaded) == Keywords, f"Expected Keywords, but got {type(important_keywords_loaded)}"
+    if KEYWORDS_AND_TFIDF:
+        print(5*"\n")
+        print("articles_tfidf == articles_tfidf_loaded")
+        print(articles_tfidf == articles_tfidf_loaded)
+        print(5*"\n")
         
         
-    if create_important_keywords_file:    
-        print(important_keywords_loaded)
-        print("important_keywords_loaded == keywords")
-        print(important_keywords_loaded == keywords)
-        """
-
-        """
-        # How to do it, if we store strings:
-
-        important_keywords = keywords.get_keywords()
-        print(important_keywords)
-
-        with open("data/important_keywords.yaml", 'w') as yaml_file:
-            yaml.dump(important_keywords, yaml_file)
 
 
-    with open("data/important_keywords.yaml", 'r') as yaml_file:
-        important_keywords_loaded = yaml.safe_load(yaml_file)
-        """
-    
-
-
-
-
-
-
-
-
-
-
-    if do_tfidf:
-
-        from sklearn.feature_extraction.text import TfidfVectorizer
-
-
-        tfidf_vectorizer = TfidfVectorizer()
-        articles_tfidf_sparse = tfidf_vectorizer.fit_transform(article_keywords_list_loaded)
-        
-        if printout:
-            # Print the TF-IDF matrix
-            print("articles_tfidf_sparse")
-            print(articles_tfidf_sparse)
-
-            # Print the feature names (words)
-            print("tfidf_vectorizer.get_feature_names_out()")
-            print(tfidf_vectorizer.get_feature_names_out())
-
-        with open("data/articles_tfidf_sparse.pkl", 'wb') as file:
-            pickle.dump(articles_tfidf_sparse, file)
-
-
-    # Load the list of objects from the file
-    with open("data/articles_tfidf_sparse.pkl", 'rb') as file:
-        articles_tfidf_sparse_loaded = pickle.load(file)
-
-
-    if do_tfidf:
-        # print("articles_tfidf_sparse_loaded != articles_tfidf_sparse")
-        # print(articles_tfidf_sparse_loaded != articles_tfidf_sparse)
-
-        print("Checking if articles_tfidf_sparse_loaded \n is equal to articles_tfidf_sparse:")
-        print("matrix1.shape == matrix2.shape and np.array_equal(matrix1.data, matrix2.data) and np.array_equal(matrix1.indices, matrix2.indices) and np.array_equal(matrix1.indptr, matrix2.indptr)")
-        print(articles_tfidf_sparse_loaded.shape == articles_tfidf_sparse.shape and np.array_equal(articles_tfidf_sparse_loaded.data, articles_tfidf_sparse.data) and np.array_equal(articles_tfidf_sparse_loaded.indices, articles_tfidf_sparse.indices) and np.array_equal(articles_tfidf_sparse_loaded.indptr, articles_tfidf_sparse.indptr))
-
-
-
-
-
-    articles_tfidf = articles_tfidf_sparse_loaded.toarray()
-    # Print the TF-IDF matrix shape
-    # print("articles_tfidf.shape")
-    # print(articles_tfidf.shape)
-
+    articles_tfidf = articles_tfidf_loaded
+    articles_tfidf = articles_tfidf.T
     # Now articles are the rows and the keywords are the columns
     # This is in line with how we built the PCA
-    articles_tfidf = articles_tfidf.T
 
 
 
 
-    if fit_PCA:
+    if FIT_PCA:
 
         PCA_model = PCA(n_components=3)
         PCA_model.fit(articles_tfidf)
