@@ -311,13 +311,13 @@ if __name__ == "__main__":
 
     start = timer()
 
-    # 1000 iters, tol 10e-50, samo cond_2
+    # 1000 iters, tol 10e-50, samo cond_2, pa kjer keyword_count ni 1
     # 0 deluje slabo
     # 3 deluje dobro
 
     RND_SEED = 3
-    MAX_ITERS = 10000
-    TOL = 1e-100
+    MAX_ITERS = 1000
+    TOL = 1e-50
 
     KEYWORDS_AND_TFIDF = True
     FIT_PCA = True
@@ -373,7 +373,8 @@ if __name__ == "__main__":
             article_keywords = set(article.gpt_keywords)
             for keyword in article_keywords:
                 keyword_ix = acceptable_keywords.index(keyword)
-                keyword_count = article.gpt_keywords.count(keyword)
+                # keyword_count = article.gpt_keywords.count(keyword)
+                keyword_count = 1 # apparently je asistent rekel, da je to ok
                 tf = keyword_count / len(article.gpt_keywords)
                 articles_tfidf[keyword_ix, article_ix] = tf * acceptable_keywords_idf[keyword_ix]
         
