@@ -138,9 +138,9 @@ class PCA:
             lambda_max_next = np.linalg.norm(e_max_next)
             e_max_next = e_max_next / lambda_max_next
 
-            # cond_1 = np.abs(lambda_max_next - lambda_max) < self.tolerance
+            cond_1 = np.abs(lambda_max_next - lambda_max) < self.tolerance
             cond_2 = np.linalg.norm(e_max_next - e_max) < self.tolerance
-            if cond_2:
+            if cond_1 and cond_2:
                 e_max = e_max_next
                 lambda_max = lambda_max_next
                 if PRINTOUT:
@@ -311,6 +311,14 @@ if __name__ == "__main__":
 
     start = timer()
 
+    # 1000 iters, tol 10e-50, samo cond_2
+    # 0 deluje slabo
+    # 3 deluje dobro
+
+    RND_SEED = 3
+    MAX_ITERS = 10000
+    TOL = 1e-100
+
     KEYWORDS_AND_TFIDF = True
     FIT_PCA = True
     DATA_STORE = False
@@ -334,7 +342,7 @@ if __name__ == "__main__":
         # Process the YAML data
         for item in yaml_data:
             gpt_keywords = item.get('gpt_keywords', [])
-            
+
             for ix, keyword in enumerate(gpt_keywords):
                 gpt_keywords[ix] = keyword.lower()
                 
@@ -348,10 +356,9 @@ if __name__ == "__main__":
         keywords.trim_keywords(20)
         acceptable_keywords = list(keywords.keyword2article_count.keys())
         
+        # This is needed for tfidf
         for article in articles:
             article.keep_only_acceptable_keywords(acceptable_keywords)
-
-
 
         articles_tfidf = np.zeros((len(acceptable_keywords), len(articles)))
         
@@ -405,7 +412,7 @@ if __name__ == "__main__":
 
     if FIT_PCA:
 
-        PCA_model = PCA(n_components=3, max_iterations=1000, tolerance=1e-7, rnd_seed=0)
+        PCA_model = PCA(n_components=3, max_iterations=MAX_ITERS, tolerance=TOL, rnd_seed=RND_SEED)
         PCA_model.fit(articles_tfidf)
 
         if DATA_STORE:
@@ -420,14 +427,7 @@ if __name__ == "__main__":
 
 
 
-
-
-    
-    
-
-
-
-
+        
     articles_tfidf_transformed = PCA_model.transform(articles_tfidf)
 
     if PRINTOUT:
