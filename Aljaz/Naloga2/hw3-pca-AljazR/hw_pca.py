@@ -1,6 +1,7 @@
 import numpy as np
 import yaml
-import vispy
+from vispy import scene, app
+import pickle
 
 class PCA:
     def __init__(
@@ -177,122 +178,69 @@ def preprocess_data(file_path):
     # Remove keywords that appear less than 20 times from data
     processed_data = []
     for item in data:
-        keywords = [keyword for keyword in item["gpt_keywords"] if count[keyword] > 20]
+        keywords = [keyword for keyword in item["gpt_keywords"] if count[keyword] >= 20]
         processed_data.append({"gpt_keywords": keywords, "title": item["title"], "url": item["url"]})
     
     # Remove keywords that appear less than 20 times from count
-    encoding = {keyword: count[keyword] for keyword in count if count[keyword] > 20}
+    count = {keyword: count[keyword] for keyword in count if count[keyword] > 20}
     
     # Remove empty articles
     processed_data = [item for item in processed_data if len(item["gpt_keywords"]) > 0]
 
-    return processed_data, encoding
+    # Make dictionary of titles as keys and keywords as values
+    processed_data = {item["title"]: item["gpt_keywords"] for item in processed_data}
 
-def term_frequency(encoding: dict) -> dict:
-    """
-    Calculate the frequency of each term in the encoding.
+    return processed_data, count
 
-    Arguments
-    ---------
-    encoding: dict
-        Dictonary with keys strings (kmers, words, phrases) and values (number of occurances).
+def pickle_save(data, count):
+    with open("data.pkl", "wb") as file:
+        pickle.dump(data, file)
+    with open("count.pkl", "wb") as file:
+        pickle.dump(count, file)
 
-    Return
-    ------
-    dict
-        Dictonary with keys strings (kmers, words, phrases) and values (FREQUENCY of occurances in this document).
-    """
-    sum_all = sum(encoding.values())
+def pickle_load():
+    with open("data.pkl", "rb") as file:
+        data = pickle.load(file)
+    with open("count.pkl", "rb") as file:
+        encoding = pickle.load(file)
 
-    out = {}
-    for key in encoding:
-        out[key] = encoding[key] / sum_all
+    return data, encoding
 
-    return out
-
-def inverse_document_frequency(documents: "list[dict]"):
-    """
-    Calculate inverse document frequency (idf) of all terms in the encoding of a document.
-    Use the corrected formula for the idf (lecture notes page 36):
-        idf(t) = log(|D| / (1 + |{d : t in d}|)),
-    where |D| is the number of documents and |{d : t in d}| is the number of documents with the term t.
-    Use natrual logarithm.
-
-    Arguments
-    ---------
-    documents: list['dict']
-        List of encodings for all documents in the study.
-
-    Return
-    ------
-    dict
-        Dictonary with keys strings (kmers, words, phrases) and values (FREQUENCY of occurances in this document.
-    """
+def inverse_document_frequency(articles, count):
     idf = {}
-
-    for document in documents:
-        for key in document:
-            if key in idf:
-                idf[key] += 1
-            else:
-                idf[key] = 1
+    for keyword in count:
+        idf[keyword] = (np.log(len(articles) / count[keyword]))
     
+    return idf
+
+def tf_idf(data, count, idf):
+    tf = 1 / len(data)
+    out_tf_idf = []
+
     for key in idf:
-        idf[key] = np.log(len(documents) / (1 + idf[key]))
-    
-    return idf    
-
-def tf_idf(encoding: dict, term_importance_idf: dict) -> dict:
-    """
-    Calculate term frequency - inverse document frequency (tf-idf) using precomputed idf (with your function)
-    and term_frequency function you implemented above (use it in this function).
-
-    The output should contain only the terms that are listed inside the term_importance_idf dictionary.
-    If the term does not exist in the document, asign it a value 0.
-    Filter terms AFTER you calculated term frequency.
-
-    Arguments
-    ---------
-    encoding: dict
-        Dictonary with keys strings (kmers, words, phrases) and values (frequency of occurances).
-    term_importance_idf: dict
-        Term importance as an output of inverse_document_frequency function.
-
-    Return
-    ------
-    dict
-        Dictonary with keys strings (kmers, words, phrases) and values (tf-idf value).
-        Includes only keys from the IDF dictionary.
-    """
-    tf = term_frequency(encoding)
-    out_tf_idf = {}
-
-    for key in term_importance_idf:
-        if key in tf:
-            out_tf_idf[key] = tf[key] * term_importance_idf[key]
+        if key in data:
+            out_tf_idf.append(tf * idf[key])
         else:
-            out_tf_idf[key] = 0
+            out_tf_idf.append(0)
 
     return out_tf_idf
-
 
 if __name__ == "__main__":
 
     # Preprocess data
-    data, encoding = preprocess_data("rtvslo.yaml")
-
-    # Save preporcessed data
-    import pickle
-    with open("data.pkl", "wb") as file:
-        pickle.dump(data, file)
-    with open("encoding.pkl", "wb") as file:
-        pickle.dump(encoding, file)
-
-    # Open preprocessed data
-    # import pickle
-    # with open("data.pkl", "rb") as file:
-    #     data = pickle.load(file)
-    # with open("encoding.pkl", "rb") as file:
-    #     encoding = pickle.load(file)
-
+    # data, count = preprocess_data("rtvslo.yaml")
+    # pickle_save(data, count)
+    articles, count = pickle_load()
     
+    # Make td-idf matrix
+    tf_idf_matrix = []
+    idf = inverse_document_frequency(articles, count)
+    for title in articles:
+        tf_idf_matrix.append(tf_idf(articles[title], count, idf))
+
+    tf_idf_matrix = np.array(tf_idf_matrix)
+
+    # Fit PCA
+    pca = PCA(n_components=3)
+    pca.fit(tf_idf_matrix)
+    pca_data = pca.transform(tf_idf_matrix)
