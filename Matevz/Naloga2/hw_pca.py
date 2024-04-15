@@ -32,6 +32,167 @@ class PCA:
         self.tolerance = tolerance
         self.rnd_seed = rnd_seed
 
+    def _fit(self, X: np.ndarray) -> None:
+        """
+        Fit PCA. Center the data around zero and use
+        potencna_metoda to obtain eigenvectors and eigenvalues
+        for later use in other functions.
+
+        Arguments
+        ---------
+        X: np.ndarray
+            Data matrix with shape (n_samples, n_features)
+        """
+        
+        np.random.seed(self.rnd_seed)
+
+        self.centroid = np.mean(X, axis=0)
+        X = X - self.centroid
+
+        # PCA transpose trick
+        # https://stats.stackexchange.com/questions/392087/what-are-conditions-to-apply-the-transpose-trick-in-pca
+        # M = np.cov(X.T)
+        # M = np.cov(X)
+        M = X.T @ X / X.shape[0]
+        # if PRINTOUT:
+        #     print(5*"\n")
+        #     print("X.shape")
+        #     print(X.shape)
+        #     print("M.shape")
+        #     print(M.shape)
+        #     print(5*"\n")
+
+        e_max, lambda_max = self.potencna_metoda(M)
+
+        # if PRINTOUT:
+        #     print(5*"\n")
+        #     print("e_max.shape")
+        #     print(e_max.shape)
+        #     print("lambda_max.shape")
+        #     print(lambda_max)
+        #     print("e_max")
+        #     print(e_max)
+
+        for i in range(self.n_components):
+            self.eigenvectors.append(list(e_max[:, i].reshape(-1)))
+            self.eigenvalues.append(lambda_max[i])
+
+
+            """
+            # This is supposed to make the eigenvectors orthogonal
+            # I think it is not working as intended
+            for col_ix in range(M.shape[1]):
+                M[:, col_ix] = M[:, col_ix] - np.dot(e_max, M[:, col_ix]) * e_max # * lambda_max
+            """
+        # Dobimo eigenvectorje kot vrstice.
+        self.eigenvectors = np.array(self.eigenvectors)
+        self.eigenvalues = np.array(self.eigenvalues)
+
+        # print(5*"\n")
+        # print("self.eigenvectors")
+        # print(self.eigenvectors)
+        # print(5*"\n")
+    
+
+
+
+
+    def _orthogonalise_and_keep_true(self, eigenvectors: np.ndarray) -> np.ndarray:
+        
+        for curr_col_ix in range(eigenvectors.shape[1]):
+
+            for col_ix in range(curr_col_ix):
+                sub_vec = eigenvectors[:, col_ix]
+                # print("np.dot(eigenvectors[:, curr_col_ix], sub_vec)")
+                # print(np.dot(eigenvectors[:, curr_col_ix], sub_vec))
+                eigenvectors[:, curr_col_ix] = eigenvectors[:, curr_col_ix] - np.dot(eigenvectors[:, curr_col_ix], sub_vec) / np.dot(sub_vec, sub_vec) * sub_vec
+            
+            if eigenvectors[0, curr_col_ix] < 0:
+                    eigenvectors[0, curr_col_ix] = -eigenvectors[0, curr_col_ix]
+
+        return eigenvectors
+
+    def _potencna_metoda(self, M: np.ndarray) -> tuple:
+        """
+        Perform the power method for calculating the eigenvector with the highest corresponding
+        eigenvalue of the covariance matrix.
+
+        Arguments
+        ---------
+        M: np.ndarray
+            Covariance matrix.
+
+        Return
+        ------
+        np.array
+            The unit eigenvector of the covariance matrix.
+        float
+            The corresponding eigenvalue for the covariance matrix.
+        """
+        # print(5*"\n")
+        # print("M")
+        # print(M)
+        # print("M.shape")
+        # print(M.shape)
+        # print(5*"\n")
+
+        e_max = np.random.rand(M.shape[0], self.n_components)
+        # print("e_max")
+        # print(e_max)
+        # self._orthogonalise(e_max)
+        # print("e_max")
+        # print(e_max)
+        e_max = self._orthogonalise_and_keep_true(e_max)
+        e_max = e_max / np.linalg.norm(e_max, axis=0)
+        # print("e_max")
+        # print(e_max)
+        lambda_max = np.zeros(self.n_components)
+
+        # initializetional phase
+        for i in range(10):
+            e_max = M @ e_max
+            # print("e_max before orthogonalisation")
+            # print(e_max)
+            e_max = self._orthogonalise_and_keep_true(e_max)
+            lambda_max = np.linalg.norm(e_max, axis=0)
+            e_max = e_max / lambda_max
+            # print("e_max after orthogonalisation and scaling")
+            # print(e_max)
+
+        for _ in range(self.max_iterations):
+
+            e_max_next =  M @ e_max
+            lambda_max_next = np.linalg.norm(e_max_next, axis=0)
+            e_max_next = self._orthogonalise_and_keep_true(e_max_next)
+            new_norms = np.linalg.norm(e_max_next, axis=0)
+            e_max_next = e_max_next / new_norms
+            
+
+            cond_1 = np.all(np.abs(lambda_max_next - lambda_max) < self.tolerance)
+            cond_2 = np.all(np.linalg.norm(e_max_next - e_max, axis=0) < self.tolerance)
+            if cond_1 and cond_2:
+            # if False:
+                e_max = e_max_next
+                lambda_max = lambda_max_next
+                if PRINTOUT:
+                    # print(5*"\n")
+                    print("tolerance reached")
+                break
+
+            e_max = e_max_next
+            lambda_max = lambda_max_next
+
+            # for i in range(self.n_components):
+            #     if e_max[0, i] < 0:
+            #         e_max[:,i] = -e_max[:,i]
+
+
+        return e_max, lambda_max
+
+
+
+
+
     def fit(self, X: np.ndarray) -> None:
         """
         Fit PCA. Center the data around zero and use
@@ -86,6 +247,7 @@ class PCA:
         # print("self.eigenvectors")
         # print(self.eigenvectors)
         # print(5*"\n")
+
     
     def _orthogonalise(self, eigenvec: np.ndarray) -> np.ndarray:
         eigenvec_to_return = eigenvec.copy()
@@ -94,7 +256,9 @@ class PCA:
             # print(np.dot(eigenvec, vec))
             eigenvec_to_return = eigenvec_to_return - np.dot(eigenvec_to_return, vec) * vec
         return eigenvec_to_return
+    
 
+    
     def potencna_metoda(self, M: np.ndarray) -> tuple:
         """
         Perform the power method for calculating the eigenvector with the highest corresponding
@@ -155,7 +319,6 @@ class PCA:
 
 
         return e_max, lambda_max
-
 
 
     def transform(self, X: np.ndarray) -> np.ndarray:
@@ -315,17 +478,22 @@ if __name__ == "__main__":
     # 0 deluje slabo
     # 3 deluje dobro
 
-
+    # DELUJE ČE PONOVLJENE BESEDE COUNTAMO VEČKRAT - TU SE PA OUTER_PCA ČISTO RAZSUJE.
+    # ČE JIH LE 1KRAT PA TRETJI VEKTOR SPET NE DELUJE
+    # No, RND_SEED = 3, TOL ((1e-80)**2 / 1959)
+    # in MAX_ITERS = 1000 je dober. Pa sta oba conditiona uporabljena.
+    # To je po originalnem pca pristopu, kjer je en vektor naenkrat v potencni metodi.
+    # Pri prvem vektorju celo reacha tolerance.
     RND_SEED = 3
-    MAX_ITERS = 20000
-    TOL = 1e-50    # 1e-50  ((1e-30)**2 * 1959)**(1/2)   # 1959 je keywordov
+    MAX_ITERS = 1000
+    TOL = ((1e-80)**2 / 1959)    # 1e-50  ((1e-30)**2 * 1959)**(1/2)   # 1959 je keywordov
 
     # OUTER_PCA deluje dobro, pa dobi isti graf. Samo tretji vektor je pa res dober, kot sem jaz dobil v tistem enem primeru. 
     OUTER_PCA = False
 
-    KEYWORDS_AND_TFIDF = False
+    KEYWORDS_AND_TFIDF = True
     FIT_PCA = True
-    DATA_STORE = False
+    DATA_STORE = True
     
     """
     If this is True, we will load the data from the file.
@@ -468,6 +636,9 @@ if __name__ == "__main__":
         # Step 6: Project the data onto the principal components to get transformed data
         transformed_data = np.dot(articles_tfidf, principal_components)
 
+        # get explained variance
+        explained_variance = eigenvalues[:n_components] / np.sum(eigenvalues)
+
         # transformed_data now contains your data in the PCA space
 
         # print(5*"\n")
@@ -520,14 +691,17 @@ if __name__ == "__main__":
         print(end - start)
     # print("here")
 
+    explained_var = PCA_model.get_explained_variance()
+    if OUTER_PCA:
+        explained_var = explained_variance
     print(5*"\n")
     print("PCA_model.get_explained_variance()")
-    print(PCA_model.get_explained_variance())
+    print(explained_var)
 
 
     # Test for what the eigenvectors are
     for i in range(3):
-        print(PCA_model.eigenvectors[i])
+        # print(PCA_model.eigenvectors[i])
         to_sort = [(ix, val) for ix, val in enumerate(PCA_model.eigenvectors[i])]
         sorted_list = sorted(to_sort, key= lambda a: a[1], reverse=True)
         best_10 = sorted_list[:10]
