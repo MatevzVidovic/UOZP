@@ -315,11 +315,15 @@ if __name__ == "__main__":
     # 0 deluje slabo
     # 3 deluje dobro
 
-    RND_SEED = 3
-    MAX_ITERS = 1000
-    TOL = 1e-50
 
-    KEYWORDS_AND_TFIDF = True
+    RND_SEED = 3
+    MAX_ITERS = 20000
+    TOL = 1e-50    # 1e-50  ((1e-30)**2 * 1959)**(1/2)   # 1959 je keywordov
+
+    # OUTER_PCA deluje dobro, pa dobi isti graf. Samo tretji vektor je pa res dober, kot sem jaz dobil v tistem enem primeru. 
+    OUTER_PCA = False
+
+    KEYWORDS_AND_TFIDF = False
     FIT_PCA = True
     DATA_STORE = False
     
@@ -328,7 +332,7 @@ if __name__ == "__main__":
     So if e.g. KEYWORDS_AND_TFIDF is True, but DATA_STORE is false,
     we will end up overriding what KEYWORDS_AND_TFIDF did
     when we load the data from the file.""" 
-    DATA_LOAD = False
+    DATA_LOAD = True
     
 
     if KEYWORDS_AND_TFIDF:
@@ -351,14 +355,19 @@ if __name__ == "__main__":
 
             articles.append(Article(title, url, gpt_keywords))
         
+
+        # Find all keywords which appear in at least 20 articles
+        # Trim them away.
         keywords = Keywords()
         keywords.add_article_keywords(articles)
         keywords.trim_keywords(20)
         acceptable_keywords = list(keywords.keyword2article_count.keys())
         
-        # This is needed for tfidf
+        # Trim them from articles also (this is needed for tf)
         for article in articles:
             article.keep_only_acceptable_keywords(acceptable_keywords)
+
+
 
         articles_tfidf = np.zeros((len(acceptable_keywords), len(articles)))
         
@@ -380,20 +389,23 @@ if __name__ == "__main__":
         
         if DATA_STORE:        
             with open("data/articles_tfidf.pkl", 'wb') as file:
-                pickle.dump(articles_tfidf, file)
+                pickle.dump((articles_tfidf, acceptable_keywords), file)
 
 
     if DATA_LOAD:
         with open("data/articles_tfidf.pkl", 'rb') as file:
-            articles_tfidf_loaded = pickle.load(file)
+            articles_tfidf_loaded, acceptable_keywords_loaded = pickle.load(file)
 
             if KEYWORDS_AND_TFIDF and PRINTOUT:
                 print(5*"\n")
                 print("np.array_equal(articles_tfidf, articles_tfidf_loaded)")
                 print(np.array_equal(articles_tfidf, articles_tfidf_loaded))
+                print("articles == articles_loaded")
+                print(acceptable_keywords == acceptable_keywords)
                 print(5*"\n")
                 
             articles_tfidf = articles_tfidf_loaded
+            acceptable_keywords = acceptable_keywords_loaded
     
     
     
@@ -416,6 +428,8 @@ if __name__ == "__main__":
         PCA_model = PCA(n_components=3, max_iterations=MAX_ITERS, tolerance=TOL, rnd_seed=RND_SEED)
         PCA_model.fit(articles_tfidf)
 
+
+
         if DATA_STORE:
             with open("data/PCA_model.pkl", 'wb') as file:
                 pickle.dump(PCA_model, file)
@@ -430,6 +444,50 @@ if __name__ == "__main__":
 
         
     articles_tfidf_transformed = PCA_model.transform(articles_tfidf)
+
+
+
+    if OUTER_PCA:
+        # Step 1: Compute the covariance matrix
+        covariance_matrix = np.cov(articles_tfidf, rowvar=False)
+
+        # Step 2: Compute the eigenvalues and eigenvectors
+        eigenvalues, eigenvectors = np.linalg.eig(covariance_matrix)
+
+        # Step 3: Sort the eigenvectors by decreasing eigenvalues
+        sorted_indices = np.argsort(eigenvalues)[::-1]
+        eigenvalues = eigenvalues[sorted_indices]
+        eigenvectors = eigenvectors[:, sorted_indices]
+
+        # Step 4: Choose the number of principal components (e.g., n_components)
+        n_components = 3  # choose the number of components you want to keep
+
+        # Step 5: Select the first n_components eigenvectors
+        principal_components = eigenvectors[:, :n_components]
+
+        # Step 6: Project the data onto the principal components to get transformed data
+        transformed_data = np.dot(articles_tfidf, principal_components)
+
+        # transformed_data now contains your data in the PCA space
+
+        # print(5*"\n")
+        # print("np.all(np.abs(transformed_data - articles_tfidf_transformed) < 1e-5)")
+        # print("np.max(np.abs(  (articles_tfidf_transformed - transformed_data)  ))")
+        # print(np.max(np.abs(  (articles_tfidf_transformed - transformed_data)  )))
+        # print("np.max(np.abs(  (articles_tfidf_transformed - transformed_data) / (transformed_data+1e-10)  ))")
+        # print(np.max(np.abs(  (articles_tfidf_transformed - transformed_data) / (transformed_data+1e-10)  )))
+        # print(5*"\n")
+        print("principal_components.shape")
+        print(principal_components.shape)
+     
+        articles_tfidf_transformed = transformed_data
+        PCA_model.eigenvectors = principal_components.T # To make it compatible with the original implementation.
+        # PCA_model.eigenvectors = [principal_components[:, i] for i in range(n_components)]
+        PCA_model.eigenvalues = eigenvalues[:n_components]
+
+
+
+
 
     if PRINTOUT:
         print(5*"\n")
