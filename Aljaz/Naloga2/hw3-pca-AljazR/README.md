@@ -1,74 +1,39 @@
-# HW3: Projekcija besedil in metoda glavnih komponent
-
-V tretji domači nalogi boste implementirali nekaj osnovnih metod za projekcijo besedil in metodo glavnih komponent. Implementirane metode boste uporabili na dveh naborih besedilnih podatkov iz prostodostopne spletne knjižnice [Project Gutenberg](https://www.gutenberg.org/).
+[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-24ddc0f5d75046c5622901739e7c5dd533143b0c8e959d652212380cedb1ea36.svg)](https://classroom.github.com/a/QNg-udn6)
+# HW2: Metoda glavnih komponent (PCA)
 
 ## Oddaja
 
-Kot oddajo morate svojo kodo in vizualizacije dodati na GitHub repozitorij.
-Prosim, da na repozitorij ne nalagate surovih podatkov besedil.
-Ko vam koda prestane vse teste, ste nalogo opravili. Pri drugem delu želimo, da se s podatki spoznate in naučite uporabe.
+Kot oddajo morate svojo kodo dodati na GitHub repozitorij.
+Ko vam koda prestane vse teste, ste nalogo opravili.
 
-## Del 1: Implementacija metod
+## Implementacija PCA
 
-V datoteki `helper_functions.py` imate zbrane metode, ki jih morate implementirati. Prosim, preberite opis in se držite tipov, ki jih metoda prejme in vrača. Za testiranje metod smo dodali še datoteko `test_hw3.py`.
+V datoteki `hw_pca.py` imate zbrane metode, ki jih morate implementirati. Prosim, preberite opis in se držite tipov, ki jih metoda prejme in vrača. Za testiranje metod smo dodali še datoteko `test_pca.py`.
 
-### Predprocesiranje besedila
-
-Osnovne metode za predprocesiranje, ki bodo omogočale branje in obdelavo besedil:
-- branje dokumentov (`read_text_file`)
-- odstranjevanje nepotrebnih znakov (`preprocess_text`)
-
-### Elementi predstavitve besedilnih vrst
-
-Predstavitev besedila v numeričnem kontekstu:
-- k-terke znakov (`words_into_kmers`)
-- vreča besed (`words_into_bag_of_words`)
-- fraze (`words_into_phrases`)
-- frekvenca ključev (`term_frequency`)
-- inverzna frekvenca v dokumentih (`inverse_document_frequency`)
-- transformacija tf-idf (`tf_idf`)
-
-
-### Metoda glavnih komponent
-
-Metodo glavnih komponent kot razred `PCA`, ki deluje po potenčni metodi.
+Metodo glavnih komponent implementirajte kot razred `PCA`, ki deluje po potenčni metodi. 
 Metode razreda implementirajte in ne spreminjajte njihovih vhodov.
-Dodali smo vam nekaj parametrov v konstruktor razreda, da boste lažje nadzorovali rekurzivni klic potenčne metode.
 Predlagamo uporabo funkcij knjižnice `numpy`, zunanjih metod pa ne boste potrebovali.
 
-## Del 2: Projekcija besedil iz zbirke Gutenberg
 
-Drugi del naloge je bolj proste narave. Izbira metod in parametrov je prepuščena vam, tudi če bi želeli katerega od jezikov odstraniti zavoljo boljše vizualizacije.
+## 3. domača naloga: PCA in kategorije članov na rtvslo.si
+Odprto: torek, 9. april 2024, 00.00
+Rok za oddajo: torek, 16. april 2024, 23.59
 
-Pripravili smo vam dve datoteki: `Gutenberg-jeziki.zip` in `Gutenberg-100-zip`. Vaša naloga je z uporabo svojih metod pripraviti dve čimbolj zanimivi vizualizaciji in jih shraniti v datoteki `jeziki.png` in `top100.png`. Za vizualizacijo uporabite knjižnico `matplotlib`.
+Ko me zanima, kaj se dogaja, me pogosto zanese na rtvslo.si. Tam objavljajo novice iz zelo različnih področij, ki so lepo razvrščene v kategorije. Ali znamo kategorije kako rekonstruirati?
 
-Za vsako od zbirk narišite sliko razcepa na glavne komponente, kjer na x in y osi ležita prva in druga glavna komponenta. Na obeh oseh označite glavne značilke, ki so imajo v glavni komponenti največje uteži (najpomembnejših 5).
-V naslovu slike napišite, katere od metod ste uporabili in s kakšnimi parametri.
+Prof. Zupan nam je pripravil podatke o več kot 10000 člankih s portala. V priloženi .yaml datoteki je vsak članek predstavljen z naslovom in ključnimi besedami (slednje je določil ChatGPT). V nalogi boste s PCA projicirali podatke v 3D prostor in jih tam poskušali razložiti. Izvedite naslednje:
 
-### Zbirke besedil 
+Ključne besede transformirajte s TF-IDF.
+Transformirane podatke sestavite v matriko, ki je primerna za PCA. Pri tem uporabite le ključne besede, ki se pojavijo v vsaj 20 dokumentih.
+Izvedite PCA z vašo implementacijo druge naloge. Seveda jo lahko še popravite, ampak tudi popravljena verzija mora zadoščati zahtevam ter testom, ki smo jih postavili tam.
+Prikažite projekcijo člankov v interaktivni 3D vizualizaciji, kjer lahko zorni kot premikamo (uporabite vispy). Vizualizacija naj vsebuje tudi graf nateznih koeficientov (loadings plot; sami se odločite, kako ustrezno izbrati značilke zanj).
+Nalogo oddate kot pythonski program, ki odpre datoteko rtvslo.yaml v istem direktoriju, izvede zgoraj opisane korake in odpre vizualizacijo. To lahko skupaj traja največ 1 minuto (na mojem 4 leta starem prenosniku, in da, tu je veliko rezerve). Program mora vsebovati tudi PCA in prestati teste 2. naloge tudi, če .yaml ni na voljo.
 
-`Gutenberg-jeziki.zip` je primer zbirke besedil v različnih jezikih, zbranih v svojih mapah. Njihov jezik boste torej vedeli vnaprej.
-Pomislite, kakšen način transformacije besedila bo najbolj odražal razlike v jezikih.
-Vizualizirajte jih z barvami, lahko pa tudi izpustite katerega od jezikov.
+Oddajte tudi predstavitvi namenjeno projekcijo, ki jo izvozite kot PDF. Obsega naj točno 4 prosojnice (in naj bo brez naslovnice):
 
-`Gutenberg-100.zip` je primer zbirke besedil v angleškem jeziku, kjer pa o besedilih nimate drugih podatkov. Z uporabo metod poskusite projecirati besedila v nižje-dimenzionalni prostor in pojasnite, na kakšne skupine se razdelijo. Verjetno boste morali za opis skupin dokumente tudi pogledati. Za razliko od prejšnjega primera ne pričakujemo lepih skupin besedil.
+1. **Podatki.** Prikažite podatke, na katerih ste izvedli PCA. Prikažite tudi nekaj ilustrativnih vrednosti tabele, ki jim dodate koristno razlago.
+2. **Razložena varianca.** Prikažite razloženo varianco po komponentah.
+3. **Rezultati.** Prikažite projekcijo in graf nateznih koeficientov.
+4. **Interpretacija.** Utemeljite vašo izbiro značilk za graf nateznih koeficientov. Interpretirajte rezultate.
 
-Pri interpretaciji in vizualizacijah vam puščamo proste roke, pogoj je le, da svojo vizualizacijo shranite in ustrezno poimenujete. Ko boste vizualizaciji pravilno shranili, se bosta izrisali spodaj.
-
-**Vizualizacija jeziki.png**
-<div>
-    <img src="jeziki.png" width="500">
-</div>
-
-**Vizualizacija top100.png**
-<div>
-    <img src="top100.png" width="500">
-</div>
-Ugotovitve:</br>
-pg20228.txt in 47629.0.txt nista v angleščini.</br>
-Razbral sem tri bolj goste gruče (desna polovica na sredini, naštete od leve proti desni):</br>
-1. gruča: imajo več geografskih pojmov (popotovanja, ekspedicije, ...)</br>
-2. gruča: bolj mešano - kriminalke, detektivke in razne avanture</br>
-3. gruča: romantične knjige</br>
-Zelo skupaj so tudi knjige iz iste serije.
-
+**Oddaja**. Na spletno učilnico oddajte vašo predstavitev (.pdf) in kodo (eno .py datoteko). Del rešitve je tudi vaša programska koda, zato naj bo pregledna.
