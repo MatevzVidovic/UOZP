@@ -415,7 +415,13 @@ class Article:
         for keyword in self.gpt_keywords:
             if keyword in acceptable_keywords_list:
                 new_gpt_keywords.append(keyword)
-
+        self.gpt_keywords = new_gpt_keywords
+    
+    def keep_only_acceptable_keywords_set(self, acceptable_keywords_set):
+        new_gpt_keywords = []
+        for keyword in self.gpt_keywords:
+            if keyword in acceptable_keywords_set:
+                new_gpt_keywords.append(keyword)
         self.gpt_keywords = new_gpt_keywords
     
     def __init__(self, gpt_keywords):
@@ -528,19 +534,32 @@ if __name__ == "__main__":
         keywords = Keywords()
         keywords.add_article_keywords(articles)
 
-        keyword2idf = dict()
+        acceptable_keyword2idf = dict()
         for keyword, article_count in keywords.keyword2article_count.items():
             if article_count >= 20:
                 idf = np.log(len(articles) / article_count)
-                keyword2idf[keyword] = idf
+                acceptable_keyword2idf[keyword] = idf
         
 
-        acceptable_keywords = list(keyword2idf.keys())
+        acceptable_keywords = list(acceptable_keyword2idf.keys())
+        # OOOOOOOOOOOOOOOOOOOHHHHHHHHHHHHHHHHHHHHHHHHHH
+        # ZDAAAAAAAAAAAAAAAAAAAAAAAJ RAZUMEM
+
+        # S tem, ko sem odtranil vse besede, ki niso acceptable iz clankov,
+        # sem spremenil stevilo besed v clankih, kar spremeni tf-idf.
+        # V nalogi je pa napisano, da najprej naredimo tf-idf, potem pa odstranimo te besede, ki jih je manj kot 20.
+        # Torej ce iz clankov ne odstranis teh besed, obdrzijo originalen length in tako je kot bi najprej naredil tf-idf.
+        # In zato potem pride pravilno.
 
         # TO JE CULPRIT KI ME JE UBIJAL 2 DNI:
-        # ZAKAAAAAAJ!!?!?!?!?
+        # # ZAKAAAAAAJ!!?!?!?!?
         # for article in articles:
         #     article.keep_only_acceptable_keywords(acceptable_keywords)
+
+        # TOLE NE POMAGA:
+        # acceptable_keywords_set = set(acceptable_keywords)
+        # for article in articles:
+        #     article.keep_only_acceptable_keywords_set(acceptable_keywords_set)
 
         newly_empty_articles = 0
         row_ixs_to_delete = []
@@ -564,9 +583,9 @@ if __name__ == "__main__":
             print("newly_empty_articles")
             print(newly_empty_articles)
 
-        articles_tfidf = article_keywords_tfs.copy()
+        articles_tfidf = article_keywords_tfs #.copy()
         for keyword in acceptable_keywords:
-            articles_tfidf[:, acceptable_keywords.index(keyword)] *= keyword2idf[keyword]
+            articles_tfidf[:, acceptable_keywords.index(keyword)] *= acceptable_keyword2idf[keyword]
         
 
 
@@ -575,23 +594,26 @@ if __name__ == "__main__":
         
         if DATA_STORE:        
             with open("data/articles_tfidf.pkl", 'wb') as file:
-                pickle.dump((articles_tfidf, acceptable_keywords), file)
+                pickle.dump((articles_tfidf, acceptable_keywords, acceptable_keyword2idf), file)
 
 
     if DATA_LOAD:
         with open("data/articles_tfidf.pkl", 'rb') as file:
-            articles_tfidf_loaded, acceptable_keywords_loaded = pickle.load(file)
+            articles_tfidf_loaded, acceptable_keywords_loaded, acceptable_keyword2idf_loaded = pickle.load(file)
 
             if KEYWORDS_AND_TFIDF and PRINTOUT:
                 print(5*"\n")
                 print("np.array_equal(articles_tfidf, articles_tfidf_loaded)")
                 print(np.array_equal(articles_tfidf, articles_tfidf_loaded))
                 print("articles == articles_loaded")
-                print(acceptable_keywords == acceptable_keywords)
+                print(acceptable_keywords == acceptable_keywords_loaded)
+                print("acceptable_keyword2idf == acceptable_keyword2idf_loaded")
+                print(acceptable_keyword2idf == acceptable_keyword2idf_loaded)
                 print(5*"\n")
                 
             articles_tfidf = articles_tfidf_loaded
             acceptable_keywords = acceptable_keywords_loaded
+            acceptable_keyword2idf = acceptable_keyword2idf_loaded
     
 
 
@@ -635,31 +657,31 @@ if __name__ == "__main__":
 
 
 
-    # use vispy to plot the data in 3D
-    from vispy import scene, app #, visuals
 
-    # canvas = scene.SceneCanvas(keys='interactive', show=True, app='pyqt5')
-    # canvas = scene.SceneCanvas(keys='interactive', show=True, app='egl')
-    # canvas = scene.SceneCanvas(keys='interactive', show=True, app='pyqt6')
-    canvas = scene.SceneCanvas(keys='interactive', show=True)
 
-    view = canvas.central_widget.add_view()
 
-    scatter = scene.visuals.Markers()
-    scatter.set_data(articles_tfidf_transformed, edge_color=None, face_color=(1, 1, 1, .5), size=5)
-    view.add(scatter)
-
-    view.camera = 'turntable'
-    canvas.show()
-
-    end = timer()
+    overall_var = np.sum(np.var(articles_tfidf, axis=0))
+    explained_var = PCA_model.get_explained_variance()
+    proportional_var = explained_var / overall_var
     if PRINTOUT:
         print(5*"\n")
-        print("Elapsed time in seconds:")
-        print(end - start)
-    # print("here")
+        print("overall_var")
+        print(overall_var)
+        print("np.var(articles_tfidf, axis=0).shape")
+        print(np.var(articles_tfidf, axis=0).shape)
+        print("len(acceptable_keywords)")
+        print(len(acceptable_keywords))
+        print("explained_var")
+        print(explained_var)
+        print("proportional_var")
+        print(proportional_var)
+        print("np.sum(proportional_var)")
+        print(np.sum(proportional_var))
+        print(5*"\n")
 
-    explained_var = PCA_model.get_explained_variance()
+   
+
+
 
 
     # Test for what the eigenvectors are
@@ -693,8 +715,158 @@ if __name__ == "__main__":
     
 
 
+    # # To je star nacin: (loadings so namrec dobro definiran koncept in niso tole)
+    # # To ustvari matriko, kjer so v vrsticah clanki z le eno klucno besedo.
+    # # Za vsako kljucno besedo je natanko en clanek. Povsod je tf = 1.
+    # # Potem to matriko pomnozimo z idf-ji, da dobimo pravo vrednost taksnega clanka. 
+    # keyword_vecs = np.eye(articles_tfidf.shape[1])
+    # for keyword in acceptable_keywords:
+    #     keyword_vecs[:, acceptable_keywords.index(keyword)] *= acceptable_keyword2idf[keyword]
+    
+    # keyword_vecs_transformed = PCA_model.transform(keyword_vecs)
+    # to_sort = [(ix, np.linalg.norm(keyword_vecs_transformed[ix, :])) for ix in range(keyword_vecs_transformed.shape[0])]
+    
+
+
+    # For each keyword we get its values in the eigenvectors 
+    vecs_for_all_keywords = np.zeros((len(acceptable_keywords), 3))
+    for keyword_ix, keyword in enumerate(acceptable_keywords):
+        for eigenvector_ix in range(3):
+            vecs_for_all_keywords[keyword_ix, eigenvector_ix] = PCA_model.eigenvectors[eigenvector_ix][keyword_ix]
+
+    to_sort = [(ix, np.linalg.norm(vecs_for_all_keywords[ix, :])) for ix in range(vecs_for_all_keywords.shape[0])]
+    sorted_list = sorted(to_sort, key= lambda a: a[1], reverse=True)
+    best_num = 20
+    best = sorted_list[:best_num]
+    best_keywords = [acceptable_keywords[ix] for ix, _ in best]
+    best_vecs = [vecs_for_all_keywords[ix, :] for ix, _ in best]
+
+    print(5*"\n")
+    print("best_vecs")
+    print(best_vecs)
+
+
+
+
+
+    # use vispy to plot the data in 3D
+    from vispy import scene, app #, visuals
+
+    # canvas = scene.SceneCanvas(keys='interactive', show=True, app='pyqt5')
+    # canvas = scene.SceneCanvas(keys='interactive', show=True, app='egl')
+    # canvas = scene.SceneCanvas(keys='interactive', show=True, app='pyqt6')
+    canvas = scene.SceneCanvas(keys='interactive', show=True)
+    view = canvas.central_widget.add_view()
+    view.camera = 'turntable'
+
+    scatter = scene.visuals.Markers()
+    scatter.set_data(articles_tfidf_transformed, edge_color=None, face_color=(1, 1, 1, .5), size=5)
+    view.add(scatter)
+
+    axis_len = 0.3
+    axis = scene.visuals.XYZAxis(pos=[[[0, 0, 0], [axis_len, 0, 0]], [[0, 0, 0], [0, axis_len, 0]], [[0, 0, 0], [0, 0, axis_len]]], color="b")
+    # axis.axis_length = (axis_len, axis_len, axis_len)
+    view.add(axis)
+
+    # colormap_names = ["r", "g", "b", "c", "m", "y", "k", "w"]
+    # colormap_labels = ["Red", "Green", "Blue", "Cyan", "Magenta", "Yellow", "Black", "White"]
+    
+    axis_labels = scene.visuals.Text(text=["PC1 (šport)", "PC2(umetnost)", "PC3(gospodarstvo)"], color="b", pos=[[axis_len, 0, 0], [0, axis_len, 0], [0, 0, axis_len]], font_size = 10)
+    view.add(axis_labels)
+
+    labels = scene.visuals.Text(pos=best_vecs, text=best_keywords, color="m", font_size=10)
+    view.add(labels)
+
+
+    # Create LineVisual object
+    # lines = np.array([[points[i], points[i+1]] for i in range(num_points-1)])
+    for vec in best_vecs:
+        # line_vis = scene.visuals.Line(pos=[[0, 0, 0], vec], color='red', parent=view.scene)
+        arrows = scene.Arrow(pos=[[0, 0, 0], vec], color=(1, 0, 0, 1), arrow_size=50, parent=view.scene)
+
+
+    # import vispy.plot as vp
+    # import vispy.io as io
+
+    # fig = vp.Fig(show=False)
+    # fig[0, 0].plot([1, 6, 2, 4, 3, 8, 5, 7, 6, 3])
+
+    # image = fig.render()
+    # io.write_png("wonderful.png",image)
+    
+
+    canvas.show()
+
+    end = timer()
+    if PRINTOUT:
+        print(5*"\n")
+        print("Elapsed time in seconds:")
+        print(end - start)
+    # print("here")
+
+
+
 
     app.run()
+
+
+     # Calculate the cumulative explained variance ratio
+    cumulative_var = np.cumsum(proportional_var)
+
+    import matplotlib.pyplot as plt
+    # Plot the scree plot
+    plt.plot(range(1, len(explained_var) + 1), cumulative_var, marker='o', color='b')
+    plt.plot(range(1, len(explained_var) + 1), proportional_var, marker='o', color='r')
+    plt.xlabel('Glavne komponente')
+    plt.ylabel('Razložen delež variance')
+    plt.title('Scree diagram')
+    plt.xticks(range(1, len(explained_var) + 1))
+    plt.yticks(0.003 * np.arange(11))  # [0, 0.2, 0.4, 0.6, 0.8, 1.0] Set y axis interval
+    plt.show()
+
+
+
+    np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
+    print(5*"\n")
+    print(acceptable_keywords[:4])
+    print(articles_tfidf[:7, :4])
+    print(5*"\n")
+    print(articles_tfidf[:7, :3])
+    print(5*"\n")
+    print()
+    print()
+
+    print("best_keywords")
+    print(best_keywords)
+    best2 = [i[1] for i in best]
+    print(np.array(best2))
+
+    # Test for what the eigenvectors are
+    for i in range(3):
+        # print(PCA_model.eigenvectors[i])
+        to_sort = [(ix, val) for ix, val in enumerate(PCA_model.eigenvectors[i])]
+        sorted_list = sorted(to_sort, key= lambda a: a[1], reverse=True)
+        best_10 = sorted_list[:10]
+        worst_10 = sorted_list[-10:]
+        print(5*"\n")
+        print(f"PCA_model.eigenvectors[{i}]")
+
+        best_10_keywords = [acceptable_keywords[ix] for ix, _ in best_10]
+        worst_10_keywords = [acceptable_keywords[ix] for ix, _ in worst_10]
+        
+        best_10 = [i[1] for i in sorted_list[:10]]
+        worst_10 = [i[1] for i in sorted_list[-10:]]
+
+        print("best_10_keywords")
+        print(best_10_keywords)
+        print(np.array(best_10))
+
+        print("worst_10_keywords")
+        print(worst_10_keywords)
+        print(np.array(worst_10))
+
+
+
 
 
 
