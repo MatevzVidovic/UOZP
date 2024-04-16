@@ -231,7 +231,7 @@ class PCA:
             # print(e_max)
             # print(5*"\n")
 
-            # A je tole ziher rpov?
+            # A je tole ziher prov?
             # M = M - lambda_max * np.outer(e_max, e_max)
 
             """
@@ -467,41 +467,29 @@ if __name__ == "__main__":
 
     start = timer()
 
-    # 1000 iters, tol 10e-50, samo cond_2, pa kjer keyword_count ni 1
-    # 0 deluje slabo
-    # 3 deluje dobro
-
-    # DELUJE ČE PONOVLJENE BESEDE COUNTAMO VEČKRAT - TU SE PA OUTER_PCA ČISTO RAZSUJE.
-    # ČE JIH LE 1KRAT PA TRETJI VEKTOR SPET NE DELUJE
-    # No, RND_SEED = 3, TOL ((1e-80)**2 / 1959)
-    # in MAX_ITERS = 1000 je dober. Pa sta oba conditiona uporabljena.
-    # To je po originalnem pca pristopu, kjer je en vektor naenkrat v potencni metodi.
-    # Pri prvem vektorju celo reacha tolerance.
     RND_SEED = 3
     MAX_ITERS = 5000
     TOL = ((1e-80)**2 / 1959)    # 1e-50  ((1e-30)**2 * 1959)**(1/2)   # 1959 je keywordov
 
-    # OUTER_PCA deluje dobro, pa dobi isti graf. Samo tretji vektor je pa res dober, kot sem jaz dobil v tistem enem primeru. 
-    OUTER_PCA = False
-
-    OUTER_TFIDF = False
-
     KEYWORDS_AND_TFIDF = True
     FIT_PCA = True
     DATA_STORE = False
+    DATA_LOAD = False
+    """
+    If this is True, we will load the data from the file.
+    So if e.g. KEYWORDS_AND_TFIDF is True, but DATA_STORE is false,
+    we will end up overriding what KEYWORDS_AND_TFIDF did
+    when we load the data from the file.""" 
     
+
     if DATA_STORE:
         try:
             os.mkdir("data")
         except:
             pass
     
-    """
-    If this is True, we will load the data from the file.
-    So if e.g. KEYWORDS_AND_TFIDF is True, but DATA_STORE is false,
-    we will end up overriding what KEYWORDS_AND_TFIDF did
-    when we load the data from the file.""" 
-    DATA_LOAD = False
+    
+    
     
 
     if KEYWORDS_AND_TFIDF:
@@ -517,8 +505,6 @@ if __name__ == "__main__":
         for item in yaml_data:
             gpt_keywords = item['gpt_keywords']
 
-            # gpt_keywords_to_keep = pd.Series(item["gpt_keywords"]).drop_duplicates().to_list()
-
             gpt_keywords_to_keep = []
 
             keywords_unique = set()
@@ -532,8 +518,6 @@ if __name__ == "__main__":
             articles.append(Article(gpt_keywords_to_keep))
         
 
-        # Find all keywords which appear in at least 20 articles
-        # Trim them away.
         keywords = Keywords()
         keywords.add_article_keywords(articles)
 
@@ -545,8 +529,6 @@ if __name__ == "__main__":
         
 
         acceptable_keywords = list(keyword2idf.keys())
-        # keyword2ix = {acceptable_keywords[i] : i for i in range(len(acceptable_keywords))}
-        # acceptable_keywords.index(keyword)
 
         article_keywords_tfs = []# dict()
         for ix, article in enumerate(articles):
@@ -556,50 +538,14 @@ if __name__ == "__main__":
                     article_keywords_tfs[ix][acceptable_keywords.index(keyword)] += 1
             article_keywords_tfs[ix] /= len(articles[ix].gpt_keywords)
 
-
-        # data_tfidf = np.array([arcticle_ix2keywords_tfs[x] for x in arcticle_ix2keywords_tfs.keys()])
         articles_tfidf = np.array(article_keywords_tfs)
         for keyword in acceptable_keywords:
             articles_tfidf[:, acceptable_keywords.index(keyword)] *= keyword2idf[keyword]
         
-        # articles_tfidf = data_tfidf.T
-        articles_tfidf = articles_tfidf.T
 
 
 
 
-
-
-
-        
-        # keywords.trim_keywords(20)
-        # acceptable_keywords = list(keywords.keyword2article_count.keys())
-        
-        # # Trim them from articles also (this is needed for tf)
-        # for article in articles:
-        #     article.keep_only_acceptable_keywords(acceptable_keywords)
-
-        # keywords = Keywords()
-        # keywords.add_article_keywords(articles)
-        # acceptable_keywords = list(keywords.keyword2article_count.keys())
-
-
-        # articles_tfidf = np.zeros((len(acceptable_keywords), len(articles)))
-        
-        # acceptable_keywords_idf = []
-        # for keyword in acceptable_keywords:
-        #     article_count = keywords.keyword2article_count[keyword]
-        #     idf = math.log2(len(articles) / (article_count))
-        #     acceptable_keywords_idf.append(idf)
-        
-        # for article_ix, article in enumerate(articles):
-
-        #     for keyword in article.gpt_keywords:
-        #         keyword_ix = acceptable_keywords.index(keyword)
-        #         # keyword_count = article.gpt_keywords.count(keyword)
-        #         keyword_count = 1 # apparently je asistent rekel, da je to ok
-        #         tf = keyword_count / len(article.gpt_keywords)
-        #         articles_tfidf[keyword_ix, article_ix] = tf * acceptable_keywords_idf[keyword_ix]
         
         if DATA_STORE:        
             with open("data/articles_tfidf.pkl", 'wb') as file:
@@ -622,62 +568,6 @@ if __name__ == "__main__":
             acceptable_keywords = acceptable_keywords_loaded
     
 
-    if OUTER_TFIDF:
-
-        import math
-        # %%
-        data = yaml.load(open("rtvslo.yaml", "rt"), yaml.CLoader)
-
-        # %%
-
-        # TF-IDF vektorizacija
-
-        num_articles = len(data)
-        articles = dict()
-        keywords_df = dict()
-        for x in data:
-            articles[x["title"]] = x["gpt_keywords"]
-            keywords_unique = pd.Series(x["gpt_keywords"]).drop_duplicates().to_list()
-            for w in keywords_unique:
-                if w in keywords_df.keys():
-                    keywords_df[w] += 1
-                else:
-                    keywords_df[w] = 1
-
-        keywords_idf = dict()
-        for w in keywords_df.keys():
-            if keywords_df[w] >= 20:
-                keywords_idf[w] = math.log2(num_articles / keywords_df[w])
-
-        keywords = [k for k in keywords_idf.keys()]
-        num_keywords = len(keywords)
-        keywords_idx = {keywords[i] : i for i in range(len(keywords))}
-
-        keywords_tf = dict()
-        for x in articles.keys():
-            keywords_tf[x] = np.zeros(num_keywords)
-            for w in articles[x]:
-                if w in keywords:
-                    keywords_tf[x][keywords_idx[w]] += 1
-            keywords_tf[x] /= len(articles[x])
-
-        data_tfidf = np.array([keywords_tf[x] for x in keywords_tf.keys()])
-        for w in keywords:
-            data_tfidf[:, keywords_idx[w]] *= keywords_idf[w]
-
-
-        articles_tfidf = data_tfidf.T
-        acceptable_keywords = keywords
-    
-    
-
-
-
-
-
-    articles_tfidf = articles_tfidf.T
-    # Now articles are the rows and the keywords are the columns
-    # This is in line with how we built the PCA
 
     if PRINTOUT:
         print(5*"\n")
@@ -708,50 +598,6 @@ if __name__ == "__main__":
 
 
     articles_tfidf_transformed = PCA_model.transform(articles_tfidf)
-
-
-
-    if OUTER_PCA:
-        # Step 1: Compute the covariance matrix
-        covariance_matrix = np.cov(articles_tfidf, rowvar=False)
-
-        # Step 2: Compute the eigenvalues and eigenvectors
-        eigenvalues, eigenvectors = np.linalg.eig(covariance_matrix)
-
-        # Step 3: Sort the eigenvectors by decreasing eigenvalues
-        sorted_indices = np.argsort(eigenvalues)[::-1]
-        eigenvalues = eigenvalues[sorted_indices]
-        eigenvectors = eigenvectors[:, sorted_indices]
-
-        # Step 4: Choose the number of principal components (e.g., n_components)
-        n_components = 3  # choose the number of components you want to keep
-
-        # Step 5: Select the first n_components eigenvectors
-        principal_components = eigenvectors[:, :n_components]
-
-        # Step 6: Project the data onto the principal components to get transformed data
-        transformed_data = np.dot(articles_tfidf, principal_components)
-
-        # get explained variance
-        explained_variance = eigenvalues[:n_components] / np.sum(eigenvalues)
-
-        # transformed_data now contains your data in the PCA space
-
-        # print(5*"\n")
-        # print("np.all(np.abs(transformed_data - articles_tfidf_transformed) < 1e-5)")
-        # print("np.max(np.abs(  (articles_tfidf_transformed - transformed_data)  ))")
-        # print(np.max(np.abs(  (articles_tfidf_transformed - transformed_data)  )))
-        # print("np.max(np.abs(  (articles_tfidf_transformed - transformed_data) / (transformed_data+1e-10)  ))")
-        # print(np.max(np.abs(  (articles_tfidf_transformed - transformed_data) / (transformed_data+1e-10)  )))
-        # print(5*"\n")
-        print("principal_components.shape")
-        print(principal_components.shape)
-     
-        articles_tfidf_transformed = transformed_data
-        PCA_model.eigenvectors = principal_components.T # To make it compatible with the original implementation.
-        # PCA_model.eigenvectors = [principal_components[:, i] for i in range(n_components)]
-        PCA_model.eigenvalues = eigenvalues[:n_components]
-
 
 
 
@@ -788,11 +634,6 @@ if __name__ == "__main__":
     # print("here")
 
     explained_var = PCA_model.get_explained_variance()
-    if OUTER_PCA:
-        explained_var = explained_variance
-    print(5*"\n")
-    print("PCA_model.get_explained_variance()")
-    print(explained_var)
 
 
     # Test for what the eigenvectors are
