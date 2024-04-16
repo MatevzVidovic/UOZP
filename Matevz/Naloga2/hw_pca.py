@@ -497,22 +497,32 @@ if __name__ == "__main__":
 
         articles = []
 
+        num_of_empty_articles = 0
         # Process the YAML data
         for item in yaml_data:
-            gpt_keywords = item['gpt_keywords']
+
+            gpt_keywords = item.get('gpt_keywords', [])
+
+            if len(gpt_keywords) == 0:
+                num_of_empty_articles += 1
+                continue
 
             gpt_keywords_to_keep = []
 
             keywords_unique = set()
-            for keyword in enumerate(gpt_keywords):
+            for keyword in gpt_keywords:
                 # print(keyword)
-                keyword_to_add = keyword[1].lower()
+                keyword_to_add = keyword.lower()
                 if keyword_to_add not in keywords_unique:
                     keywords_unique.add(keyword_to_add)
                     gpt_keywords_to_keep.append(keyword_to_add)
 
             articles.append(Article(gpt_keywords_to_keep))
         
+        
+        if PRINTOUT:
+            print("num_of_empty_articles")
+            print(num_of_empty_articles)
 
         keywords = Keywords()
         keywords.add_article_keywords(articles)
@@ -527,6 +537,7 @@ if __name__ == "__main__":
         acceptable_keywords = list(keyword2idf.keys())
 
         # TO JE CULPRIT KI ME JE UBIJAL 2 DNI:
+        # ZAKAAAAAAJ!!?!?!?!?
         # for article in articles:
         #     article.keep_only_acceptable_keywords(acceptable_keywords)
   
