@@ -1,6 +1,6 @@
 import numpy as np
 import yaml
-from vispy import scene, app
+import plotly.express as px
 import pickle
 
 class PCA:
@@ -150,56 +150,60 @@ class PCA:
 
 
 ###### 3. hw ######
-def preprocess_data(file_path):
+def preprocess_articles(file_path):
     # Open file
     with open(file_path, "r") as file:
-        data = yaml.safe_load(file)
+        articles = yaml.safe_load(file)
 
-    # Delete duplicated keywords in each article
-    for item in data:
-        item["gpt_keywords"] = list(set(item["gpt_keywords"]))
+    # All keywords to lowercase
+    for article in articles:
+        article["gpt_keywords"] = [keyword.lower() for keyword in article["gpt_keywords"]]
+    
+        # Delete duplicated keywords in each article
+    for article in articles:
+        article["gpt_keywords"] = list(set(article["gpt_keywords"]))
 
     # Save only unique keywords for each line
-    for item in data:
-        for i in range(len(item["gpt_keywords"])):
-            item["gpt_keywords"][i] = item["gpt_keywords"][i].split(" ")
-            item["gpt_keywords"][i] = list(set(item["gpt_keywords"][i]))
-            item["gpt_keywords"][i] = " ".join(item["gpt_keywords"][i])
+    for article in articles:
+        for i in range(len(article["gpt_keywords"])):
+            article["gpt_keywords"][i] = article["gpt_keywords"][i].split(" ")
+            article["gpt_keywords"][i] = list(set(article["gpt_keywords"][i]))
+            article["gpt_keywords"][i] = " ".join(article["gpt_keywords"][i])
 
     # Count the number of times each keyword appears
     count = {}
-    for item in data:
-        for keyword in item["gpt_keywords"]:
+    for article in articles:
+        for keyword in article["gpt_keywords"]:
             if keyword not in count:
                 count[keyword] = 1
             else:
                 count[keyword] += 1
     
     # Remove keywords that appear less than 20 times from data
-    processed_data = []
-    for item in data:
-        keywords = [keyword for keyword in item["gpt_keywords"] if count[keyword] >= 20]
-        processed_data.append({"gpt_keywords": keywords, "title": item["title"], "url": item["url"]})
+    processed_articles = []
+    for article in articles:
+        keywords = [keyword for keyword in article["gpt_keywords"] if count[keyword] >= 20]
+        processed_articles.append({"gpt_keywords": keywords, "title": article["title"], "url": article["url"]})
     
     # Remove keywords that appear less than 20 times from count
     count = {keyword: count[keyword] for keyword in count if count[keyword] > 20}
     
     # Remove empty articles
-    processed_data = [item for item in processed_data if len(item["gpt_keywords"]) > 0]
+    processed_articles = [item for item in processed_articles if len(item["gpt_keywords"]) > 0]
 
     # Make dictionary of titles as keys and keywords as values
-    processed_data = {item["title"]: item["gpt_keywords"] for item in processed_data}
+    processed_articles = {item["title"]: item["gpt_keywords"] for item in processed_articles}
 
-    return processed_data, count
+    return processed_articles, count
 
-def pickle_save(data, count):
-    with open("data.pkl", "wb") as file:
-        pickle.dump(data, file)
+def pickle_save(articles, count):
+    with open("articles.pkl", "wb") as file:
+        pickle.dump(articles, file)
     with open("count.pkl", "wb") as file:
         pickle.dump(count, file)
 
 def pickle_load():
-    with open("data.pkl", "rb") as file:
+    with open("articles.pkl", "rb") as file:
         data = pickle.load(file)
     with open("count.pkl", "rb") as file:
         encoding = pickle.load(file)
@@ -228,8 +232,8 @@ def tf_idf(data, count, idf):
 if __name__ == "__main__":
 
     # Preprocess data
-    # data, count = preprocess_data("rtvslo.yaml")
-    # pickle_save(data, count)
+    # articles, count = preprocess_articles("rtvslo.yaml")
+    # pickle_save(articles, count)
     articles, count = pickle_load()
     
     # Make td-idf matrix
@@ -244,3 +248,9 @@ if __name__ == "__main__":
     pca = PCA(n_components=3)
     pca.fit(tf_idf_matrix)
     pca_data = pca.transform(tf_idf_matrix)
+  
+    # Plot pca_data
+    import plotly.express as px
+    df = {"pca1": pca_data[:, 0], "pca2": pca_data[:, 1], "pca3": pca_data[:, 2]}
+    fig = px.scatter_3d(df, x='pca1', y='pca2', z='pca3')
+    fig.show()
