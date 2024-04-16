@@ -3,8 +3,6 @@ import yaml
 import os
 import pickle
 from timeit import default_timer as timer
-import pandas as pd
-import math
 
 PRINTOUT = True
 
@@ -468,7 +466,7 @@ if __name__ == "__main__":
     start = timer()
 
     RND_SEED = 3
-    MAX_ITERS = 5000
+    MAX_ITERS = 1000
     TOL = ((1e-80)**2 / 1959)    # 1e-50  ((1e-30)**2 * 1959)**(1/2)   # 1959 je keywordov
 
     KEYWORDS_AND_TFIDF = True
@@ -494,10 +492,8 @@ if __name__ == "__main__":
 
     if KEYWORDS_AND_TFIDF:
         # Open the YAML file and load its contents
-        # with open("rtvslo.yaml", 'r') as yaml_file:
-        #     yaml_data = yaml.safe_load(yaml_file)
-        
-        yaml_data = yaml.load(open("rtvslo.yaml", "rt"), yaml.CLoader)
+        with open("rtvslo.yaml", 'r') as yaml_file:
+            yaml_data = yaml.safe_load(yaml_file)
 
         articles = []
 
@@ -524,21 +520,23 @@ if __name__ == "__main__":
         keyword2idf = dict()
         for keyword, article_count in keywords.keyword2article_count.items():
             if article_count >= 20:
-                idf = math.log2(len(articles) / article_count)
+                idf = np.log(len(articles) / article_count)
                 keyword2idf[keyword] = idf
         
 
         acceptable_keywords = list(keyword2idf.keys())
 
-        article_keywords_tfs = []# dict()
+        # TO JE CULPRIT KI ME JE UBIJAL 2 DNI:
+        # for article in articles:
+        #     article.keep_only_acceptable_keywords(acceptable_keywords)
+  
+        article_keywords_tfs = np.zeros((len(articles), len(acceptable_keywords)))
         for ix, article in enumerate(articles):
-            article_keywords_tfs.append(np.zeros(len(acceptable_keywords)))
             for keyword in article.gpt_keywords:
                 if keyword in acceptable_keywords:
-                    article_keywords_tfs[ix][acceptable_keywords.index(keyword)] += 1
-            article_keywords_tfs[ix] /= len(articles[ix].gpt_keywords)
+                    article_keywords_tfs[ix, acceptable_keywords.index(keyword)] = 1/len(articles[ix].gpt_keywords)
 
-        articles_tfidf = np.array(article_keywords_tfs)
+        articles_tfidf = article_keywords_tfs.copy()
         for keyword in acceptable_keywords:
             articles_tfidf[:, acceptable_keywords.index(keyword)] *= keyword2idf[keyword]
         
