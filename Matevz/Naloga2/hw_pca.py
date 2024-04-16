@@ -3,7 +3,8 @@ import yaml
 import os
 import pickle
 from timeit import default_timer as timer
-
+import pandas as pd
+import math
 
 PRINTOUT = True
 
@@ -412,24 +413,18 @@ class PCA:
 class Article:
 
     def keep_only_acceptable_keywords(self, acceptable_keywords_list):
-        self.gpt_keywords = [keyword for keyword in self.gpt_keywords if keyword in acceptable_keywords_list]
+        new_gpt_keywords = []
+        for keyword in self.gpt_keywords:
+            if keyword in acceptable_keywords_list:
+                new_gpt_keywords.append(keyword)
 
-    def __init__(self, title, url, gpt_keywords):
-        self.title = title
-        self.url = url
+        self.gpt_keywords = new_gpt_keywords
+    
+    def __init__(self, gpt_keywords):
         self.gpt_keywords = gpt_keywords
 
-    def __str__(self):
-        return f"Title: {self.title}\nURL: {self.url}\nGPT Keywords: {self.gpt_keywords}\n"
-
-    def __repr__(self):
-        return f"Title: {self.title}\nURL: {self.url}\nGPT Keywords: {self.gpt_keywords}\n"
-
     def __eq__(self, other):
-        return self.title == other.title and self.url == other.url and self.gpt_keywords == other.gpt_keywords
-
-    def __hash__(self):
-        return hash((self.title, self.url, self.gpt_keywords))
+        return self.gpt_keywords == other.gpt_keywords
 
 class Keywords:
 
@@ -450,9 +445,7 @@ class Keywords:
 
         for article in article_list:
 
-            keywords = set(article.gpt_keywords)
-            
-            for keyword in keywords:
+            for keyword in article.gpt_keywords:
                 self.add_keyword(keyword)
         
     
@@ -485,75 +478,128 @@ if __name__ == "__main__":
     # To je po originalnem pca pristopu, kjer je en vektor naenkrat v potencni metodi.
     # Pri prvem vektorju celo reacha tolerance.
     RND_SEED = 3
-    MAX_ITERS = 1000
+    MAX_ITERS = 5000
     TOL = ((1e-80)**2 / 1959)    # 1e-50  ((1e-30)**2 * 1959)**(1/2)   # 1959 je keywordov
 
     # OUTER_PCA deluje dobro, pa dobi isti graf. Samo tretji vektor je pa res dober, kot sem jaz dobil v tistem enem primeru. 
     OUTER_PCA = False
 
+    OUTER_TFIDF = False
+
     KEYWORDS_AND_TFIDF = True
     FIT_PCA = True
-    DATA_STORE = True
+    DATA_STORE = False
+    
+    if DATA_STORE:
+        try:
+            os.mkdir("data")
+        except:
+            pass
     
     """
     If this is True, we will load the data from the file.
     So if e.g. KEYWORDS_AND_TFIDF is True, but DATA_STORE is false,
     we will end up overriding what KEYWORDS_AND_TFIDF did
     when we load the data from the file.""" 
-    DATA_LOAD = True
+    DATA_LOAD = False
     
 
     if KEYWORDS_AND_TFIDF:
         # Open the YAML file and load its contents
-        with open("rtvslo.yaml", 'r') as yaml_file:
-            yaml_data = yaml.safe_load(yaml_file)
+        # with open("rtvslo.yaml", 'r') as yaml_file:
+        #     yaml_data = yaml.safe_load(yaml_file)
+        
+        yaml_data = yaml.load(open("rtvslo.yaml", "rt"), yaml.CLoader)
 
         articles = []
 
-        
         # Process the YAML data
         for item in yaml_data:
-            gpt_keywords = item.get('gpt_keywords', [])
+            gpt_keywords = item['gpt_keywords']
 
-            for ix, keyword in enumerate(gpt_keywords):
-                gpt_keywords[ix] = keyword.lower()
-                
-            title = item.get('title', '')
-            url = item.get('url', '')
+            # gpt_keywords_to_keep = pd.Series(item["gpt_keywords"]).drop_duplicates().to_list()
 
-            articles.append(Article(title, url, gpt_keywords))
+            gpt_keywords_to_keep = []
+
+            keywords_unique = set()
+            for keyword in enumerate(gpt_keywords):
+                # print(keyword)
+                keyword_to_add = keyword[1].lower()
+                if keyword_to_add not in keywords_unique:
+                    keywords_unique.add(keyword_to_add)
+                    gpt_keywords_to_keep.append(keyword_to_add)
+
+            articles.append(Article(gpt_keywords_to_keep))
         
 
         # Find all keywords which appear in at least 20 articles
         # Trim them away.
         keywords = Keywords()
         keywords.add_article_keywords(articles)
-        keywords.trim_keywords(20)
-        acceptable_keywords = list(keywords.keyword2article_count.keys())
+
+        keyword2idf = dict()
+        for keyword, article_count in keywords.keyword2article_count.items():
+            if article_count >= 20:
+                idf = math.log2(len(articles) / article_count)
+                keyword2idf[keyword] = idf
         
-        # Trim them from articles also (this is needed for tf)
-        for article in articles:
-            article.keep_only_acceptable_keywords(acceptable_keywords)
+
+        acceptable_keywords = list(keyword2idf.keys())
+        # keyword2ix = {acceptable_keywords[i] : i for i in range(len(acceptable_keywords))}
+        # acceptable_keywords.index(keyword)
+
+        article_keywords_tfs = []# dict()
+        for ix, article in enumerate(articles):
+            article_keywords_tfs.append(np.zeros(len(acceptable_keywords)))
+            for keyword in article.gpt_keywords:
+                if keyword in acceptable_keywords:
+                    article_keywords_tfs[ix][acceptable_keywords.index(keyword)] += 1
+            article_keywords_tfs[ix] /= len(articles[ix].gpt_keywords)
 
 
-
-        articles_tfidf = np.zeros((len(acceptable_keywords), len(articles)))
-        
-        acceptable_keywords_idf = []
+        # data_tfidf = np.array([arcticle_ix2keywords_tfs[x] for x in arcticle_ix2keywords_tfs.keys()])
+        articles_tfidf = np.array(article_keywords_tfs)
         for keyword in acceptable_keywords:
-            article_count = keywords.keyword2article_count[keyword]
-            idf = np.log(len(articles) / (article_count+1))
-            acceptable_keywords_idf.append(idf)
+            articles_tfidf[:, acceptable_keywords.index(keyword)] *= keyword2idf[keyword]
         
-        for article_ix, article in enumerate(articles):
+        # articles_tfidf = data_tfidf.T
+        articles_tfidf = articles_tfidf.T
 
-            article_keywords = set(article.gpt_keywords)
-            for keyword in article_keywords:
-                keyword_ix = acceptable_keywords.index(keyword)
-                # keyword_count = article.gpt_keywords.count(keyword)
-                keyword_count = 1 # apparently je asistent rekel, da je to ok
-                tf = keyword_count / len(article.gpt_keywords)
-                articles_tfidf[keyword_ix, article_ix] = tf * acceptable_keywords_idf[keyword_ix]
+
+
+
+
+
+
+        
+        # keywords.trim_keywords(20)
+        # acceptable_keywords = list(keywords.keyword2article_count.keys())
+        
+        # # Trim them from articles also (this is needed for tf)
+        # for article in articles:
+        #     article.keep_only_acceptable_keywords(acceptable_keywords)
+
+        # keywords = Keywords()
+        # keywords.add_article_keywords(articles)
+        # acceptable_keywords = list(keywords.keyword2article_count.keys())
+
+
+        # articles_tfidf = np.zeros((len(acceptable_keywords), len(articles)))
+        
+        # acceptable_keywords_idf = []
+        # for keyword in acceptable_keywords:
+        #     article_count = keywords.keyword2article_count[keyword]
+        #     idf = math.log2(len(articles) / (article_count))
+        #     acceptable_keywords_idf.append(idf)
+        
+        # for article_ix, article in enumerate(articles):
+
+        #     for keyword in article.gpt_keywords:
+        #         keyword_ix = acceptable_keywords.index(keyword)
+        #         # keyword_count = article.gpt_keywords.count(keyword)
+        #         keyword_count = 1 # apparently je asistent rekel, da je to ok
+        #         tf = keyword_count / len(article.gpt_keywords)
+        #         articles_tfidf[keyword_ix, article_ix] = tf * acceptable_keywords_idf[keyword_ix]
         
         if DATA_STORE:        
             with open("data/articles_tfidf.pkl", 'wb') as file:
@@ -575,9 +621,60 @@ if __name__ == "__main__":
             articles_tfidf = articles_tfidf_loaded
             acceptable_keywords = acceptable_keywords_loaded
     
+
+    if OUTER_TFIDF:
+
+        import math
+        # %%
+        data = yaml.load(open("rtvslo.yaml", "rt"), yaml.CLoader)
+
+        # %%
+
+        # TF-IDF vektorizacija
+
+        num_articles = len(data)
+        articles = dict()
+        keywords_df = dict()
+        for x in data:
+            articles[x["title"]] = x["gpt_keywords"]
+            keywords_unique = pd.Series(x["gpt_keywords"]).drop_duplicates().to_list()
+            for w in keywords_unique:
+                if w in keywords_df.keys():
+                    keywords_df[w] += 1
+                else:
+                    keywords_df[w] = 1
+
+        keywords_idf = dict()
+        for w in keywords_df.keys():
+            if keywords_df[w] >= 20:
+                keywords_idf[w] = math.log2(num_articles / keywords_df[w])
+
+        keywords = [k for k in keywords_idf.keys()]
+        num_keywords = len(keywords)
+        keywords_idx = {keywords[i] : i for i in range(len(keywords))}
+
+        keywords_tf = dict()
+        for x in articles.keys():
+            keywords_tf[x] = np.zeros(num_keywords)
+            for w in articles[x]:
+                if w in keywords:
+                    keywords_tf[x][keywords_idx[w]] += 1
+            keywords_tf[x] /= len(articles[x])
+
+        data_tfidf = np.array([keywords_tf[x] for x in keywords_tf.keys()])
+        for w in keywords:
+            data_tfidf[:, keywords_idx[w]] *= keywords_idf[w]
+
+
+        articles_tfidf = data_tfidf.T
+        acceptable_keywords = keywords
     
     
-    
+
+
+
+
+
     articles_tfidf = articles_tfidf.T
     # Now articles are the rows and the keywords are the columns
     # This is in line with how we built the PCA
@@ -610,7 +707,6 @@ if __name__ == "__main__":
 
 
 
-        
     articles_tfidf_transformed = PCA_model.transform(articles_tfidf)
 
 
@@ -706,19 +802,25 @@ if __name__ == "__main__":
         sorted_list = sorted(to_sort, key= lambda a: a[1], reverse=True)
         best_10 = sorted_list[:10]
         next_10 = sorted_list[10:20]
+        worst_10 = sorted_list[-10:]
         print(5*"\n")
         print(f"PCA_model.eigenvectors[{i}]")
         print("best_10")
         print(best_10)
         print("next_10")
         print(next_10)
+        print("worst_10")
+        print(worst_10)
 
         best_10_keywords = [acceptable_keywords[ix] for ix, _ in best_10]
         next_10_keywords = [acceptable_keywords[ix] for ix, _ in next_10]
+        worst_10_keywords = [acceptable_keywords[ix] for ix, _ in worst_10]
         print("best_10_keywords")
         print(best_10_keywords)
         print("next_10_keywords")
         print(next_10_keywords)
+        print("worst_10_keywords")
+        print(worst_10_keywords)
 
 
     
