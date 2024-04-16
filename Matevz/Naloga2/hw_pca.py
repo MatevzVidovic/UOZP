@@ -503,10 +503,6 @@ if __name__ == "__main__":
 
             gpt_keywords = item.get('gpt_keywords', [])
 
-            if len(gpt_keywords) == 0:
-                num_of_empty_articles += 1
-                continue
-
             gpt_keywords_to_keep = []
 
             keywords_unique = set()
@@ -516,10 +512,15 @@ if __name__ == "__main__":
                 if keyword_to_add not in keywords_unique:
                     keywords_unique.add(keyword_to_add)
                     gpt_keywords_to_keep.append(keyword_to_add)
+            
+
+            if len(gpt_keywords_to_keep) == 0:
+                num_of_empty_articles += 1
+                continue
 
             articles.append(Article(gpt_keywords_to_keep))
         
-        
+
         if PRINTOUT:
             print("num_of_empty_articles")
             print(num_of_empty_articles)
@@ -540,12 +541,28 @@ if __name__ == "__main__":
         # ZAKAAAAAAJ!!?!?!?!?
         # for article in articles:
         #     article.keep_only_acceptable_keywords(acceptable_keywords)
+
+        newly_empty_articles = 0
+        row_ixs_to_delete = []
   
         article_keywords_tfs = np.zeros((len(articles), len(acceptable_keywords)))
         for ix, article in enumerate(articles):
+            any_usable = False
             for keyword in article.gpt_keywords:
                 if keyword in acceptable_keywords:
                     article_keywords_tfs[ix, acceptable_keywords.index(keyword)] = 1/len(articles[ix].gpt_keywords)
+                    any_usable = True
+                
+            if not any_usable:
+                newly_empty_articles += 1
+                row_ixs_to_delete.append(ix)
+        
+        article_keywords_tfs = np.delete(article_keywords_tfs, row_ixs_to_delete, axis=0)
+
+
+        if PRINTOUT:
+            print("newly_empty_articles")
+            print(newly_empty_articles)
 
         articles_tfidf = article_keywords_tfs.copy()
         for keyword in acceptable_keywords:
