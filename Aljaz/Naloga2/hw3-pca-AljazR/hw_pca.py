@@ -1,7 +1,8 @@
 import numpy as np
 import yaml
-import plotly.express as px
-import pickle
+import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+import pandas as pd
 
 class PCA:
     def __init__(
@@ -149,108 +150,105 @@ class PCA:
         return X
 
 
-###### 3. hw ######
-def preprocess_articles(file_path):
-    # Open file
-    with open(file_path, "r") as file:
-        articles = yaml.safe_load(file)
-
-    # All keywords to lowercase
-    for article in articles:
-        article["gpt_keywords"] = [keyword.lower() for keyword in article["gpt_keywords"]]
-    
-        # Delete duplicated keywords in each article
-    for article in articles:
-        article["gpt_keywords"] = list(set(article["gpt_keywords"]))
-
-    # Save only unique keywords for each line
-    for article in articles:
-        for i in range(len(article["gpt_keywords"])):
-            article["gpt_keywords"][i] = article["gpt_keywords"][i].split(" ")
-            article["gpt_keywords"][i] = list(set(article["gpt_keywords"][i]))
-            article["gpt_keywords"][i] = " ".join(article["gpt_keywords"][i])
-
-    # Count the number of times each keyword appears
-    count = {}
-    for article in articles:
-        for keyword in article["gpt_keywords"]:
-            if keyword not in count:
-                count[keyword] = 1
-            else:
-                count[keyword] += 1
-    
-    # Remove keywords that appear less than 20 times from data
-    processed_articles = []
-    for article in articles:
-        keywords = [keyword for keyword in article["gpt_keywords"] if count[keyword] >= 20]
-        processed_articles.append({"gpt_keywords": keywords, "title": article["title"], "url": article["url"]})
-    
-    # Remove keywords that appear less than 20 times from count
-    count = {keyword: count[keyword] for keyword in count if count[keyword] > 20}
-    
-    # Remove empty articles
-    processed_articles = [item for item in processed_articles if len(item["gpt_keywords"]) > 0]
-
-    # Make dictionary of titles as keys and keywords as values
-    processed_articles = {item["title"]: item["gpt_keywords"] for item in processed_articles}
-
-    return processed_articles, count
-
-def pickle_save(articles, count):
-    with open("articles.pkl", "wb") as file:
-        pickle.dump(articles, file)
-    with open("count.pkl", "wb") as file:
-        pickle.dump(count, file)
-
-def pickle_load():
-    with open("articles.pkl", "rb") as file:
-        data = pickle.load(file)
-    with open("count.pkl", "rb") as file:
-        encoding = pickle.load(file)
-
-    return data, encoding
-
-def inverse_document_frequency(articles, count):
-    idf = {}
-    for keyword in count:
-        idf[keyword] = (np.log(len(articles) / count[keyword]))
-    
-    return idf
-
-def tf_idf(data, count, idf):
-    tf = 1 / len(data)
-    out_tf_idf = []
-
-    for key in idf:
-        if key in data:
-            out_tf_idf.append(tf * idf[key])
-        else:
-            out_tf_idf.append(0)
-
-    return out_tf_idf
-
 if __name__ == "__main__":
 
-    # Preprocess data
-    # articles, count = preprocess_articles("rtvslo.yaml")
-    # pickle_save(articles, count)
-    articles, count = pickle_load()
-    
-    # Make td-idf matrix
-    tf_idf_matrix = []
-    idf = inverse_document_frequency(articles, count)
-    for title in articles:
-        tf_idf_matrix.append(tf_idf(articles[title], count, idf))
+    # Open file
+    with open("rtvslo.yaml", "r") as file:
+        articles = yaml.safe_load(file)
 
-    tf_idf_matrix = np.array(tf_idf_matrix)
+    # Make dictionary of titles as keys and keywords as values
+    articles = {article["title"]: article["gpt_keywords"] for article in articles}
+
+    # Remove duplicated keywords in each article and count keywords
+    count = {}
+    for article in articles:
+        articles[article] = pd.Series(articles[article]).drop_duplicates().to_list()
+        for keyword in articles[article]:
+            if keyword in count:
+                count[keyword] += 1
+            else:
+                count[keyword] = 1
+
+    # Calculate idf
+    idf = {}
+    for keyword in count:
+        if count[keyword] >= 20:
+            idf[keyword] = (np.log2(len(articles) / count[keyword]))
+
+    # Make td-idf matrix
+    tf_idf_matrix = {}
+    for title in articles:
+        tf = 1 / len(articles[title])
+        tf_idf_matrix[title] = np.zeros(len(idf))
+
+        for i, keyword in enumerate(idf):
+            if keyword in articles[title]:
+                tf_idf_matrix[title][i] = tf * idf[keyword]
+
+    tf_idf_matrix = np.array([tf_idf_matrix[title] for title in tf_idf_matrix])
 
     # Fit PCA
-    pca = PCA(n_components=3)
+    pca = PCA(n_components=3, tolerance=1e-10, max_iterations=1000)
     pca.fit(tf_idf_matrix)
     pca_data = pca.transform(tf_idf_matrix)
-  
+    
     # Plot pca_data
-    import plotly.express as px
     df = {"pca1": pca_data[:, 0], "pca2": pca_data[:, 1], "pca3": pca_data[:, 2]}
-    fig = px.scatter_3d(df, x='pca1', y='pca2', z='pca3')
+    fig = go.Figure()
+    fig.add_trace(go.Scatter3d(x=df["pca1"], y=df["pca2"], z=df["pca3"], mode="markers", marker=dict(size=3, color="#1f77b4"))) # 17becf
+    fig.update_layout(scene=dict(xaxis_title="PCA1", yaxis_title="PCA2", zaxis_title="PCA3"))
+      
+    # Ready coordinates and labels for loading plot
+    top = 20
+    labels = []
+    coordinates = []
+    for eigenvector in pca.eigenvectors:
+        sorted_eigenvector = sorted(zip(eigenvector, range(len(eigenvector))), key=lambda x: x[0], reverse=True)
+
+        top_zip = sorted_eigenvector[:top]
+        top_indeces = [x[1] for x in top_zip]
+        top_keywords = [[k for k in idf.keys()][x] for x in top_indeces]
+
+        for i in range(top):
+            print(f"{i+1}. {top_keywords[i]}({top_indeces[i]}) - {top_zip[i][0]:.2f}")
+        print()
+
+        # Get coordinates of the top 20 keywords
+        for i in top_indeces:
+            coordinates.append([pca.eigenvectors[0][i], pca.eigenvectors[1][i], pca.eigenvectors[2][i]])
+        labels += top_keywords
+
+    # fig.add_trace(go.Scatter3d(x=[x[0] for x in coordinates], y=[x[1] for x in coordinates], z=[x[2] for x in coordinates], mode="markers+text", text=labels, textposition="top center", marker=dict(color="#1f77b4")))
+    # fig.update_layout(scene=dict(xaxis_title="PCA1", yaxis_title="PCA2", zaxis_title="PCA3"))
+    # for coordinate in coordinates:
+    #     fig.add_trace(go.Scatter3d(x=[0, coordinate[0]], y=[0, coordinate[1]], z=[0, coordinate[2]], mode="lines", line=dict(color="#1f77b4")))
+    
+    # Clusters we got from gpt-4
+    clusters = {
+    "Šport": ["tekma", "zmaga", "trener", "ekipa", "poraz", "točke", "obramba", "gol", "košarka", "napad", "reprezentanca", "nogomet", "igralec", "igralci", "sezona", "turnir", "liga", "kvalifikacije", "rezultat", "vratar", "strelec", "zadetek"],
+    "Umetnost in kultura": ["umetnost", "razstava", "glasba", "festival", "film", "nagrada", "igralec", "režiser", "umetnik", "literatura", "gledališče", "kultura", "koncert", "življenje", "zgodovina", "predstava", "umetniki", "premiera", "ustvarjanje", "ljubezen"],
+    "Gospodarstvo": ["inflacija", "gospodarstvo", "rast", "vlagatelji", "podjetja", "recesija"]
+    }
+    
+    # Loading plot
+    for cluster in clusters:
+        mean_points = []
+        for keyword in clusters[cluster]:
+            index = [i for i, x in enumerate(labels) if x == keyword]
+            if len(index) > 0:
+                mean_points.append(coordinates[index[0]])
+        
+        mean_point = np.mean(mean_points, axis=0)
+        # use color 214, 39, 40
+        fig.add_trace(go.Scatter3d(x=[mean_point[0]], y=[mean_point[1]], z=[mean_point[2]], mode="markers+text", text=cluster, textposition="top center", marker=dict(size=12, color="Black"), textfont=dict(size=35, color="Black", ))) # d62728
+        fig.add_trace(go.Scatter3d(x=[0, mean_point[0]], y=[0, mean_point[1]], z=[0, mean_point[2]], mode="lines", line=dict(color="Black", width=4), showlegend=False)) # d62728
+
+    fig.update_layout(showlegend=False)
     fig.show()
+
+    # Bar plot of explained variance
+    explained_variance = pca.get_explained_variance()
+    plt.bar(range(1, 4), explained_variance)
+    plt.xticks([1,2,3])
+    plt.show()
+
