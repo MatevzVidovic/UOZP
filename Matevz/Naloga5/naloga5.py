@@ -308,15 +308,31 @@ if True:
 
     print("Here 1")
 
+    vectorizers = {
+        "leads": None,
+        "keywords": None,
+        "gpt_keywords": None
+    }
+
+    tfidf_args = {
+        "max_features": None,
+        "max_df": 0.85,
+        "min_df": 0.001, # za 20 je zelo podobno število na koncu
+        "norm": "l2",
+        "stop_words": None,
+        "smooth_idf": True
+    }
+
     count_vectorizer = CountVectorizer()
     X_counts = count_vectorizer.fit_transform(data_prepared.leads_tfidf)
     data_prepared.leads_counts = X_counts.toarray()
     data_prepared.leads_counts_names = count_vectorizer.get_feature_names_out()
 
-    vectorizer = TfidfVectorizer(max_features=None, norm="l2", stop_words=None, smooth_idf=True)
+    vectorizer = TfidfVectorizer(**tfidf_args)
     vectorizer.fit(data_prepared.leads_tfidf)
     data_prepared.leads_tfidf = vectorizer.transform(data_prepared.leads_tfidf)
     data_prepared.leads_names = vectorizer.get_feature_names_out()
+    vectorizers["leads"] = vectorizer
     
     print("Here 2")
 
@@ -325,10 +341,11 @@ if True:
     data_prepared.keywords_counts = X_counts.toarray()
     data_prepared.keywords_counts_names = count_vectorizer.get_feature_names_out()
 
-    vectorizer = TfidfVectorizer(max_features=None, norm="l2", stop_words=None, smooth_idf=True)
+    vectorizer = TfidfVectorizer(**tfidf_args)
     vectorizer.fit(data_prepared.keywords_tfidf)
     data_prepared.keywords_tfidf = vectorizer.transform(data_prepared.keywords_tfidf)
     data_prepared.keywords_names = vectorizer.get_feature_names_out()
+    vectorizers["keywords"] = vectorizer
 
     print("Here 3")
 
@@ -337,10 +354,11 @@ if True:
     data_prepared.gpt_keywords_counts = X_counts.toarray()
     data_prepared.gpt_keywords_counts_names = count_vectorizer.get_feature_names_out()
 
-    vectorizer = TfidfVectorizer(max_features=None, norm="l2", stop_words=None, smooth_idf=True)
+    vectorizer = TfidfVectorizer(**tfidf_args)
     vectorizer.fit(data_prepared.gpt_keywords_tfidf)
     data_prepared.gpt_keywords_tfidf  = vectorizer.transform(data_prepared.gpt_keywords_tfidf)
     data_prepared.gpt_keywords_names = vectorizer.get_feature_names_out()
+    vectorizers["gpt_keywords"] = vectorizer
 
     print("Here 4")
 
@@ -356,13 +374,13 @@ if True:
     
     
     
-    """
-    # Path to save the pickled file
-    pickle_file_path = './data/data_prepared.pkl'
+    
+    # # Path to save the pickled file
+    # pickle_file_path = './data/data_prepared.pkl'
 
-    # Pickle the data
-    with open(pickle_file_path, 'wb') as pf:
-        pickle.dump(data_prepared, pf)"""
+    # # Pickle the data
+    # with open(pickle_file_path, 'wb') as pf:
+    #     pickle.dump(data_prepared, pf)
 
 else:
 
@@ -383,6 +401,9 @@ print("data_prepared.gpt_keywords_tfidf.shape: " + str(data_prepared.gpt_keyword
 print("Here 5")
 
 
+"""
+# This is only important if we are doing the selection due to miimum idf ourselves. But we have min_df for that now.
+
 print("np.array_equal(data_prepared.leads_names, data_prepared.leads_counts_names): " + 
       str(np.array_equal(data_prepared.leads_names, data_prepared.leads_counts_names)))
 
@@ -401,6 +422,7 @@ print("np.array_equal(data_prepared.gpt_keywords_names, data_prepared.gpt_keywor
         str(np.array_equal(data_prepared.gpt_keywords_names, data_prepared.gpt_keywords_counts_names)))
 
 print("Here 8")
+"""
 
 """
 # This crashes due to RAM
