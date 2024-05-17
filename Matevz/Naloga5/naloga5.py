@@ -81,6 +81,7 @@ from sklearn.model_selection import train_test_split
 
 from lemmagen3 import Lemmatizer
 
+from overloading import overload
 
 
 
@@ -470,47 +471,166 @@ print("data_prepared.leads_names: " + str(data_prepared.leads_names))
 
 
 
+def vertical_concat(firs_np, second_np):
+    returner = np.vstack((firs_np, second_np))
+    return returner
+
+
+def copy_list(list_):
+    returner = []
+    returner.extend(list_)
+    return returner
 
 class DataTopic:
 
-    def __init__(self, topic, data_prepared, ixs):
+    def __init__(self, topic=None, data_prepared=None, ixs=None):
 
-        self.topic = topic
+        if topic is None:
+            self.URLs = []
+            self.URL_names = []
 
-        self.URLs = data_prepared.URLs[ixs]
-        self.URL_names = data_prepared.URL_names
+            self.authors = []
+            self.authors_names = []
 
-        self.authors = data_prepared.authors[ixs]
-        self.authors_names = data_prepared.authors_names
+            self.years = []
+            self.month_functions = []
+            self.month_functions_names = []
+            # self.hours = []
+            self.parts_of_day = []
+            self.parts_of_day_names = []
 
-        self.years = data_prepared.years[ixs]
-        self.month_functions = data_prepared.month_functions[ixs]
-        self.month_functions_names = data_prepared.month_functions_names
-        # self.hours = []
-        self.parts_of_day = data_prepared.parts_of_day[ixs]
-        self.parts_of_day_names = data_prepared.parts_of_day_names
+            self.nums_of_figs = []
+            
+            self.topics = [] 
+            self.topics_encoded = []
+            self.topics_names = []
+            
+            self.num_of_comments = []
 
-        self.nums_of_figs = data_prepared.nums_of_figs[ixs]
+
+            self.leads_tfidf = []
+            self.leads_names = []
+
+            self.keywords_tfidf = []
+            self.keywords_names = []
+
+            self.gpt_keywords_tfidf = []
+            self.gpt_keywords_names = []
         
-        self.topics = [data_prepared.topics[ix] for ix in ixs] 
-        self.topics_encoded = data_prepared.topics_encoded[ixs]
-        self.topics_names = data_prepared.topics_names
+        else:
+
+            self.topic = topic
+
+            self.URLs = data_prepared.URLs[ixs]
+            self.URL_names = data_prepared.URL_names
+
+            self.authors = data_prepared.authors[ixs]
+            self.authors_names = data_prepared.authors_names
+
+            self.years = data_prepared.years[ixs]
+            self.month_functions = data_prepared.month_functions[ixs]
+            self.month_functions_names = data_prepared.month_functions_names
+            # self.hours = []
+            self.parts_of_day = data_prepared.parts_of_day[ixs]
+            self.parts_of_day_names = data_prepared.parts_of_day_names
+
+            self.nums_of_figs = data_prepared.nums_of_figs[ixs]
+            
+            self.topics = [data_prepared.topics[ix] for ix in ixs] 
+            self.topics_encoded = data_prepared.topics_encoded[ixs]
+            self.topics_names = data_prepared.topics_names
+            
+            self.num_of_comments = data_prepared.num_of_comments[ixs]
+
+
+            self.leads_tfidf = data_prepared.leads_tfidf[ixs]
+            self.leads_names = data_prepared.leads_names
+
+            self.keywords_tfidf = data_prepared.keywords_tfidf[ixs]
+            self.keywords_names = data_prepared.keywords_names
+
+            self.gpt_keywords_tfidf = data_prepared.gpt_keywords_tfidf[ixs]
+            self.gpt_keywords_names = data_prepared.gpt_keywords_names
+
+
+
+    def concat(self, other_data_topic):
+        new_data_topic = DataTopic()
+
+
+        new_data_topic.URLs = vertical_concat(self.URLs, other_data_topic.URLs)
+        new_data_topic.URL_names = self.URL_names
+
+        new_data_topic.authors = vertical_concat(self.authors, other_data_topic.authors)
+        new_data_topic.authors_names = self.authors_names
+
+        new_data_topic.years = vertical_concat(self.years, other_data_topic.years)
+        new_data_topic.month_functions = vertical_concat(self.month_functions, other_data_topic.month_functions)
+        new_data_topic.month_functions_names = self.month_functions_names
+        # new_data_topic.hours = []
+        new_data_topic.parts_of_day = vertical_concat(self.parts_of_day, other_data_topic.parts_of_day)
+        new_data_topic.parts_of_day_names = self.parts_of_day_names
+
+        new_data_topic.nums_of_figs = vertical_concat(self.nums_of_figs, other_data_topic.nums_of_figs)
         
-        self.num_of_comments = data_prepared.num_of_comments[ixs]
+        new_data_topic.topics = copy_list(self.topics).extend(other_data_topic.topics)
+        new_data_topic.topics_encoded = vertical_concat(self.topics_encoded, other_data_topic.topics_encoded)
+        new_data_topic.topics_names = self.topics_names
+        
+        new_data_topic.num_of_comments = vertical_concat(self.num_of_comments, other_data_topic.num_of_comments)
 
 
-        self.leads_tfidf = data_prepared.leads_tfidf[ixs]
-        self.leads_names = data_prepared.leads_names
+        new_data_topic.leads_tfidf = vertical_concat(self.leads_tfidf, other_data_topic.leads_tfidf)
+        new_data_topic.leads_names = self.leads_names
 
-        self.keywords_tfidf = data_prepared.keywords_tfidf[ixs]
-        self.keywords_names = data_prepared.keywords_names
+        new_data_topic.keywords_tfidf = vertical_concat(self.keywords_tfidf, other_data_topic.keywords_tfidf)
+        new_data_topic.keywords_names = self.keywords_names
 
-        self.gpt_keywords_tfidf = data_prepared.gpt_keywords_tfidf[ixs]
-        self.gpt_keywords_names = data_prepared.gpt_keywords_names
+        new_data_topic.gpt_keywords_tfidf = vertical_concat(self.gpt_keywords_tfidf, other_data_topic.gpt_keywords_tfidf)
+        new_data_topic.gpt_keywords_names = self.gpt_keywords_names
+
+        return new_data_topic
+        
+    def copy(self):
+        new_data_topic = DataTopic()
+
+        new_data_topic.URLs = np.copy(self.URLs)
+        new_data_topic.URL_names = copy_list(self.URL_names)
+
+        new_data_topic.authors = np.copy(self.authors)
+        new_data_topic.authors_names = copy_list(self.authors_names)
+
+        new_data_topic.years = np.copy(self.years)
+        new_data_topic.month_functions = np.copy(self.month_functions)
+        new_data_topic.month_functions_names = copy_list(self.month_functions_names)
+        # new_data_topic.hours = []
+        new_data_topic.parts_of_day = np.copy(self.parts_of_day)
+        new_data_topic.parts_of_day_names = copy_list(self.parts_of_day_names)
+
+        new_data_topic.nums_of_figs = np.copy(self.nums_of_figs)
+
+        new_data_topic.topics = copy_list(self.topics)
+        new_data_topic.topics_encoded = np.copy(self.topics_encoded)
+        new_data_topic.topics_names = copy_list(self.topics_names)
+
+        new_data_topic.num_of_comments = np.copy(self.num_of_comments)
+
+        new_data_topic.leads_tfidf = np.copy(self.leads_tfidf)
+        new_data_topic.leads_names = copy_list(self.leads_names)
+
+        new_data_topic.keywords_tfidf = np.copy(self.keywords_tfidf)
+        new_data_topic.keywords_names = copy_list(self.keywords_names)
+
+        new_data_topic.gpt_keywords_tfidf = np.copy(self.gpt_keywords_tfidf)
+        new_data_topic.gpt_keywords_names = copy_list(self.gpt_keywords_names)
+
+        return new_data_topic
+    
+
+
     
     def __str__(self):
         out_str = f"""
-        topic: {self.topic}
         URLs: {self.URLs}
         URLs_names: {self.URL_names}
         authors: {self.authors}
@@ -561,6 +681,60 @@ for topic in possible_topics:
 
 
 print(topic_2_data_topic["stevilke"])
+
+grouped_topics = topic_2_data_topic["stevilke"].copy().concat(topic_2_data_topic["kolumne"])
+print(grouped_topics)
+
+
+
+
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from sklearn.model_selection import train_test_split
+from sklearn.datasets import make_regression
+from sklearn.metrics import mean_squared_error
+
+def build_model_from_data_topic(data_topic):
+
+    # This is going to have to be diferent for:
+    # - topic data topics
+    # - and for the grouped data topic where "stevilke" and "kolumne" and "znanost in tehnologija" are grouped
+    # - and also, make a model without topics with all data topics. - this is meant for unrecognised data topics.
+
+
+    # do feature selection on the leads, keywords and gpt_keywords
+    # Do mutual informaion from sklearn and choose best 150 or sth.
+    # Make a graph of mutual information and show it so we can gauge it.
+
+    # concat the data into one matrix
+
+    # do an L2 normalization on all columns.
+    # The one-hot colmns remain interpretable (two values for how much in pos or neg we go)
+    # Tfidf needs it, because previous "l2" was for rows, not columns. It was for documents.
+    # Month functions can get normalized also. Their scale wont be from func(0) to func(1) anymore, but scaled. But who cares.
+    # Its just a function with a constant in front now.
+    # And all of this allows us to use regularization that doesn't discriminate towards larger normed columns.
+    # So these are small prices to pay.
+
+    # Iterate:
+    # build the model with an L1 regularization
+    # check against validation set
+    # make a formula for the tradoff between:
+    # loss of R2 compared to the best model, and the number of parameters that got reduced..
+
+
+
+
+
+    # model = LinearRegression()
+    # model = Ridge(alpha=0.5)
+    model = Lasso(alpha=0.5)
+
+    X = np.hstack((data_topic.years, data_topic.month_functions, data_topic.parts_of_day, data_topic.nums_of_figs, data_topic.topics_encoded, data_topic.leads_tfidf, data_topic.keywords_tfidf, data_topic.gpt_keywords_tfidf))
+    y = data_topic.num_of_comments
+
+    model.fit(X, y)
+
+    return model
 
 
 
