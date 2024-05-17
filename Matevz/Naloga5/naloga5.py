@@ -77,36 +77,11 @@ import tfidf
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
 
-"""
-if True:
-    import pickle
-
-    # Path to your .json.gzip file
-    file_path = './data/rtvslo_train.json.gzip'
-
-    # Open the gzip file
-    with gzip.open(file_path, 'rt', encoding='utf-8') as f:
-        # Read and parse the JSON data
-        data = json.load(f)
+from lemmagen3 import Lemmatizer
 
 
-    # Path to save the pickled file
-    pickle_file_path = './data/rtvslo_train.pkl'
-
-    # Pickle the data
-    with open(pickle_file_path, 'wb') as pf:
-        pickle.dump(data, pf)
-
-else:
-
-    # Path to your pickle file
-    pickle_file_path = './data/rtvslo_train.pkl'
-
-    # Open the pickle file and load the data
-    with open(pickle_file_path, 'rb') as pf:
-        data = pickle.load(pf)
-"""
 
 
 
@@ -151,6 +126,10 @@ class DataClass:
             self.length += 1
 
 
+
+
+
+
 if True:
 
     # Path to your .json.gzip file
@@ -165,28 +144,15 @@ if True:
     print("len(data): " + str(len(data)))
     print("data[0].keys(): " + str(data[0].keys()))
 
-    data_class = DataClass(data)
 
+    train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
+    train_data, val_data = train_test_split(train_data, test_size=0.2, random_state=42)
 
-    # Path to save the pickled file
-    pickle_file_path = './data/data_class.pkl'
+    data_class = DataClass(train_data)
 
-    # Pickle the data
-    with open(pickle_file_path, 'wb') as pf:
-        pickle.dump(data_class, pf)
-
-else:
-
-    # Path to your pickle file
-    pickle_file_path = './data/data_class.pkl'
-
-    # Open the pickle file and load the data
-    with open(pickle_file_path, 'rb') as pf:
-        data_class = pickle.load(pf)
-
-print("data_class.URLs[0]: " + str(data_class.URLs[0]))
-print("data_class.length: " + str(data_class.length))
-print("data_class.num_of_ommited_by_topic: " + str(data_class.num_of_ommited_by_topic))
+    print("data_class.URLs[0]: " + str(data_class.URLs[0]))
+    print("data_class.length: " + str(data_class.length))
+    print("data_class.num_of_ommited_by_topic: " + str(data_class.num_of_ommited_by_topic))
 
 
 
@@ -205,30 +171,36 @@ class DataPrepared:
 
     def __init__(self):
         self.URLs = []
+        self.URL_names = []
+
         self.authors = []
-        self.times = []
+        self.authors_names = []
+
+        self.years = []
+        self.month_functions = []
+        self.month_functions_names = []
+        # self.hours = []
+        self.parts_of_day = []
+        self.parts_of_day_names = []
+
         self.nums_of_figs = []
+        
         self.topics = []
+        self.topics_encoded = []
+        self.topics_names = []
+        
         self.num_of_comments = []
 
 
         self.leads_tfidf = []
         self.leads_names = []
-        self.leads_counts = []
-        self.leads_counts_names = []
-        # self.leads_empty_ixs = set()
 
         self.keywords_tfidf = []
         self.keywords_names = []
-        self.keywords_counts = []
-        self.keywords_counts_names = []
-        # self.keywords_empty_ixs = set()
 
         self.gpt_keywords_tfidf = []
         self.gpt_keywords_names = []
-        self.gpt_keywords_counts = []
-        self.gpt_keywords_counts_names = []
-        # self.gpt_keywords_empty_ixs = set()
+        
 
 
 
@@ -236,15 +208,58 @@ class DataPrepared:
 
 
 
+def one_hot_encode(list_of_vals):
+    possible_vals = list(set(list_of_vals))
+
+    returner = np.zeros((len(list_of_vals), len(possible_vals)))
+
+    for ix, val in enumerate(list_of_vals):
+        returner[ix, possible_vals.index(val)] = 1
+    
+    return returner, possible_vals
+
+def make_list_1D(list_of_lists):
+    returner = []
+    for list_ in list_of_lists:
+        returner.extend(list_)
+    return returner
+
+def one_hot_encode_URLs(list_of_lists_of_urls):
+    possible_vals = make_list_1D(list_of_lists_of_urls)
+    possible_vals = list(set(possible_vals))
+
+    returner = np.zeros((len(list_of_lists_of_urls), len(possible_vals)))
+
+    for ix, list_of_urls in enumerate(list_of_lists_of_urls):
+        for url in list_of_urls:
+            returner[ix, possible_vals.index(url)] = 1
+    
+    return returner, possible_vals
+
+
+def months_into_functions(months):
+
+    func_names = ["month", "sin(month)", "cos(month)", "sqrt(month), squared(month)"]
+    returner = np.zeros((len(months), 5))
+
+    for ix, month in enumerate(months):
+        month = month % 12
+        month = month / 12
+        returner[ix, 0] = month
+        returner[ix, 1] = np.sin(2 * np.pi * month)
+        returner[ix, 2] = np.cos(2 * np.pi * month)
+        returner[ix, 3] = np.sqrt(month)
+        returner[ix, 4] = month ** 2
+    
+    return returner, func_names
 
 
 
 
 
+URL_KEEP_TOPIC = False
 
-
-
-
+URL_start_ix = 3 if URL_KEEP_TOPIC else 4
 
 
 
@@ -252,11 +267,16 @@ if True:
 
     data_prepared = DataPrepared()
 
+    
+    LEMMATIZE = True
+    
+    lemmatizer = Lemmatizer('sl')
+
     for curr_ix in range(data_class.length):
 
         curr_URL = data_class.URLs[curr_ix]
         split_curr_URL = curr_URL.split('/')
-        useful_split_curr_URL = split_curr_URL[3:-2]
+        useful_split_curr_URL = split_curr_URL[URL_start_ix:-2]
         data_prepared.URLs.append(useful_split_curr_URL)
 
         curr_authors = data_class.authors[curr_ix]
@@ -272,8 +292,11 @@ if True:
         # conv to ints in one line
         year, month, day, hour = map(int, [year, month, day, hour])
         part_of_day = hour // 3
+
+        data_prepared.years.append(year)
+        data_prepared.month_functions.append(month)
+        data_prepared.parts_of_day.append(part_of_day)
         # print(year, month, day, hour, part_of_day)
-        data_prepared.times.append([year, month, day, part_of_day])
 
         curr_num_of_figs = data_class.nums_of_figs[curr_ix]
         # print(curr_num_of_figs)
@@ -290,23 +313,80 @@ if True:
 
 
 
-        curr_lead = [x.lower() for x in data_class.leads[curr_ix].split(" ")]
-        curr_lead = " ".join(curr_lead)
-        data_prepared.leads_tfidf.append(curr_lead)
+        if LEMMATIZE:
 
-        curr_keywords = [x.lower() for x in data_class.keywords[curr_ix]]
-        curr_keywords = " ".join(curr_keywords)
-        data_prepared.keywords_tfidf.append(curr_keywords)
+            curr_lead = [lemmatizer.lemmatize(x.lower()) for x in data_class.leads[curr_ix].split(" ")]
+            curr_lead = " ".join(curr_lead)
+            data_prepared.leads_tfidf.append(curr_lead)
 
-        curr_gpt_keywords = [x.lower() for x in data_class.gpt_keywords[curr_ix]]
-        curr_gpt_keywords = " ".join(curr_gpt_keywords)
-        data_prepared.gpt_keywords_tfidf.append(curr_gpt_keywords)
+            curr_keywords = [lemmatizer.lemmatize(x.lower()) for x in data_class.keywords[curr_ix]]
+            curr_keywords = " ".join(curr_keywords)
+            data_prepared.keywords_tfidf.append(curr_keywords)
 
 
+            # Has to be done in a different way because:
+            # UnicodeDecodeError: 'utf-8' codec can't decode byte 0xc5 in position 114: unexpected end of data
+            curr_gpt_keywords = []
+            for x in data_class.gpt_keywords[curr_ix]:
+                try:
+                    curr_gpt_keywords.append(lemmatizer.lemmatize(x.lower()))
+                except:
+                    pass
+            curr_gpt_keywords = " ".join(curr_gpt_keywords)
+            data_prepared.gpt_keywords_tfidf.append(curr_gpt_keywords)
+
+
+        else:
+            
+            curr_lead = [x.lower() for x in data_class.leads[curr_ix].split(" ")]
+            curr_lead = " ".join(curr_lead)
+            data_prepared.leads_tfidf.append(curr_lead)
+
+            curr_keywords = [x.lower() for x in data_class.keywords[curr_ix]]
+            curr_keywords = " ".join(curr_keywords)
+            data_prepared.keywords_tfidf.append(curr_keywords)
+
+            curr_gpt_keywords = [x.lower() for x in data_class.gpt_keywords[curr_ix]]
+            curr_gpt_keywords = " ".join(curr_gpt_keywords)
+            data_prepared.gpt_keywords_tfidf.append(curr_gpt_keywords)
 
 
 
-    print("Here 1")
+
+
+
+
+
+
+
+
+
+    data_prepared.URLs, data_prepared.URL_names = one_hot_encode_URLs(data_prepared.URLs)
+
+    data_prepared.authors, data_prepared.authors_names = one_hot_encode(data_prepared.authors)
+
+
+    data_prepared.years = np.array(data_prepared.years).reshape(-1, 1)
+
+    data_prepared.month_functions, data_prepared.month_functions_names = months_into_functions(data_prepared.month_functions)
+
+    data_prepared.parts_of_day, data_prepared.parts_of_day_names = one_hot_encode(data_prepared.parts_of_day)
+
+
+    data_prepared.nums_of_figs = np.array(data_prepared.nums_of_figs).reshape(-1, 1)
+    
+
+    data_prepared.topics_encoded, data_prepared.topics_names = one_hot_encode(data_prepared.topics)
+
+    data_prepared.num_of_comments = np.array(data_prepared.num_of_comments).reshape(-1, 1)
+
+
+
+
+
+
+
+
 
     vectorizers = {
         "leads": None,
@@ -322,11 +402,7 @@ if True:
         "stop_words": None,
         "smooth_idf": True
     }
-
-    count_vectorizer = CountVectorizer()
-    X_counts = count_vectorizer.fit_transform(data_prepared.leads_tfidf)
-    data_prepared.leads_counts = X_counts.toarray()
-    data_prepared.leads_counts_names = count_vectorizer.get_feature_names_out()
+    
 
     vectorizer = TfidfVectorizer(**tfidf_args)
     vectorizer.fit(data_prepared.leads_tfidf)
@@ -334,42 +410,19 @@ if True:
     data_prepared.leads_names = vectorizer.get_feature_names_out()
     vectorizers["leads"] = vectorizer
     
-    print("Here 2")
-
-    count_vectorizer = CountVectorizer()
-    X_counts = count_vectorizer.fit_transform(data_prepared.keywords_tfidf)
-    data_prepared.keywords_counts = X_counts.toarray()
-    data_prepared.keywords_counts_names = count_vectorizer.get_feature_names_out()
-
+    
     vectorizer = TfidfVectorizer(**tfidf_args)
     vectorizer.fit(data_prepared.keywords_tfidf)
     data_prepared.keywords_tfidf = vectorizer.transform(data_prepared.keywords_tfidf)
     data_prepared.keywords_names = vectorizer.get_feature_names_out()
     vectorizers["keywords"] = vectorizer
 
-    print("Here 3")
-
-    count_vectorizer = CountVectorizer()
-    X_counts = count_vectorizer.fit_transform(data_prepared.gpt_keywords_tfidf)
-    data_prepared.gpt_keywords_counts = X_counts.toarray()
-    data_prepared.gpt_keywords_counts_names = count_vectorizer.get_feature_names_out()
 
     vectorizer = TfidfVectorizer(**tfidf_args)
     vectorizer.fit(data_prepared.gpt_keywords_tfidf)
     data_prepared.gpt_keywords_tfidf  = vectorizer.transform(data_prepared.gpt_keywords_tfidf)
     data_prepared.gpt_keywords_names = vectorizer.get_feature_names_out()
     vectorizers["gpt_keywords"] = vectorizer
-
-    print("Here 4")
-
-    """
-    # Leads special, because we had to preprocess it above.
-    data_prepared.leads_tfidf, data_prepared.leads_empty_ixs = tfidf.tfidf(data_prepared.leads_tfidf)
-
-    data_prepared.keywords_tfidf, data_prepared.keywords_empty_ixs = tfidf.tfidf(data_class.keywords)
-    data_prepared.gpt_keywords_tfidf, data_prepared.keywords_empty_ixs = tfidf.tfidf(data_class.gpt_keywords)
-    """
-
     
     
     
@@ -396,64 +449,124 @@ print("data_prepared.leads_tfidf.shape: " + str(data_prepared.leads_tfidf.shape)
 print("data_prepared.keywords_tfidf.shape: " + str(data_prepared.keywords_tfidf.shape))
 print("data_prepared.gpt_keywords_tfidf.shape: " + str(data_prepared.gpt_keywords_tfidf.shape))
 
+print("data_prepared.leads_names[:10]: " + str(data_prepared.leads_names[:10]))
+print("data_prepared.keywords_names[:10]: " + str(data_prepared.keywords_names[:10]))
+print("data_prepared.gpt_keywords_names[:10]: " + str(data_prepared.gpt_keywords_names[:10]))
+
+print("data_prepared.leads_names[30:40]: " + str(data_prepared.leads_names[30:40]))
+print("data_prepared.keywords_names[30:40]: " + str(data_prepared.keywords_names[30:40]))
+print("data_prepared.gpt_keywords_names[30:40]: " + str(data_prepared.gpt_keywords_names[30:40]))
 
 
-print("Here 5")
+
+print("data_prepared.leads_names[50:90]: " + str(data_prepared.leads_names[50:90]))
+print("data_prepared.keywords_names[50:90]: " + str(data_prepared.keywords_names[50:90]))
+print("data_prepared.gpt_keywords_names[50:90]: " + str(data_prepared.gpt_keywords_names[50:90]))
 
 
-"""
-# This is only important if we are doing the selection due to miimum idf ourselves. But we have min_df for that now.
-
-print("np.array_equal(data_prepared.leads_names, data_prepared.leads_counts_names): " + 
-      str(np.array_equal(data_prepared.leads_names, data_prepared.leads_counts_names)))
-
-# print("data_prepared.leads_names.shape: " + str(data_prepared.leads_names.shape))
-# print("data_prepared.leads_counts_names.shape: " + str(data_prepared.leads_counts_names.shape))
-
-print("Here 6")
-
-print("np.array_equal(data_prepared.keywords_names, data_prepared.keywords_counts_names): " +
-        str(np.array_equal(data_prepared.keywords_names, data_prepared.keywords_counts_names)))
+print("data_prepared.leads_names: " + str(data_prepared.leads_names))
 
 
-print("Here 7")
-
-print("np.array_equal(data_prepared.gpt_keywords_names, data_prepared.gpt_keywords_counts_names): " +
-        str(np.array_equal(data_prepared.gpt_keywords_names, data_prepared.gpt_keywords_counts_names)))
-
-print("Here 8")
-"""
-
-"""
-# This crashes due to RAM
-
-num_of_mismatches = 0
-
-for ix, count_name in enumerate(data_prepared.leads_counts_names):
-    if count_name != data_prepared.leads_names[ix]:
-        print("count_name != data_prepared.leads_names[ix]")
-        print(count_name)
-        print(data_prepared.leads_names[ix])
-        num_of_mismatches += 1
 
 
-for ix, count_name in enumerate(data_prepared.keywords_counts_names):
-    if count_name != data_prepared.keywords_names[ix]:
-        print("count_name != data_prepared.keywords_names[ix]")
-        print(count_name)
-        print(data_prepared.keywords_names[ix])
-        num_of_mismatches += 1
 
 
-for ix, count_name in enumerate(data_prepared.gpt_keywords_counts_names):
-    if count_name != data_prepared.gpt_keywords_names[ix]:
-        print("count_name != data_prepared.gpt_keywords_names[ix]")
-        print(count_name)
-        print(data_prepared.gpt_keywords_names[ix])
-        num_of_mismatches += 1
+class DataTopic:
 
-print("num_of_mismatches: " + str(num_of_mismatches))
-"""
+    def __init__(self, topic, data_prepared, ixs):
+
+        self.topic = topic
+
+        self.URLs = data_prepared.URLs[ixs]
+        self.URL_names = data_prepared.URL_names
+
+        self.authors = data_prepared.authors[ixs]
+        self.authors_names = data_prepared.authors_names
+
+        self.years = data_prepared.years[ixs]
+        self.month_functions = data_prepared.month_functions[ixs]
+        self.month_functions_names = data_prepared.month_functions_names
+        # self.hours = []
+        self.parts_of_day = data_prepared.parts_of_day[ixs]
+        self.parts_of_day_names = data_prepared.parts_of_day_names
+
+        self.nums_of_figs = data_prepared.nums_of_figs[ixs]
+        
+        self.topics = [data_prepared.topics[ix] for ix in ixs] 
+        self.topics_encoded = data_prepared.topics_encoded[ixs]
+        self.topics_names = data_prepared.topics_names
+        
+        self.num_of_comments = data_prepared.num_of_comments[ixs]
+
+
+        self.leads_tfidf = data_prepared.leads_tfidf[ixs]
+        self.leads_names = data_prepared.leads_names
+
+        self.keywords_tfidf = data_prepared.keywords_tfidf[ixs]
+        self.keywords_names = data_prepared.keywords_names
+
+        self.gpt_keywords_tfidf = data_prepared.gpt_keywords_tfidf[ixs]
+        self.gpt_keywords_names = data_prepared.gpt_keywords_names
+    
+    def __str__(self):
+        out_str = f"""
+        topic: {self.topic}
+        URLs: {self.URLs}
+        URLs_names: {self.URL_names}
+        authors: {self.authors}
+        authors_names: {self.authors_names}
+        years: {self.years}
+        month_functions: {self.month_functions}
+        month_functions_names: {self.month_functions_names}
+        parts_of_day: {self.parts_of_day}
+        parts_of_day_names: {self.parts_of_day_names}
+        nums_of_figs: {self.nums_of_figs}
+        topics: {self.topics}
+        topics_encoded: {self.topics_encoded}
+        topics_names: {self.topics_names}
+        num_of_comments: {self.num_of_comments}
+        leads_tfidf: {self.leads_tfidf}
+        leads_names: {self.leads_names}
+        keywords_tfidf: {self.keywords_tfidf}
+        keywords_names: {self.keywords_names}
+        gpt_keywords_tfidf: {self.gpt_keywords_tfidf}
+        gpt_keywords_names: {self.gpt_keywords_names}
+        """
+        return out_str
+
+
+
+# Data splitting by topic
+
+prepared_data_len = len(data_prepared.URLs)
+possible_topics = list(set(data_prepared.topics))
+topic_2_ixs = dict()
+for ix, topic in enumerate(data_prepared.topics):
+    if topic not in topic_2_ixs:
+        topic_2_ixs[topic] = [ix]
+    else:
+        topic_2_ixs[topic].append(ix)
+
+
+print("possible_topics: " + str(possible_topics))
+print("len(possible_topics): " + str(len(possible_topics)))
+print("topic_2_ixs.keys(): " + str(topic_2_ixs.keys()))
+print("len(topic_2_ixs): " + str(len(topic_2_ixs)))
+print(topic_2_ixs["stevilke"])
+
+
+topic_2_data_topic = dict()
+for topic in possible_topics:
+    topic_2_data_topic[topic] = DataTopic(topic, data_prepared, topic_2_ixs[topic])
+
+
+print(topic_2_data_topic["stevilke"])
+
+
+
+
+
+
 
 
 
