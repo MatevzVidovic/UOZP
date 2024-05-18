@@ -263,7 +263,6 @@ URL_KEEP_TOPIC = False
 URL_start_ix = 3 if URL_KEEP_TOPIC else 4
 
 
-
 if True:
 
     data_prepared = DataPrepared()
@@ -310,6 +309,11 @@ if True:
         curr_num_of_comments = data_class.num_of_comments[curr_ix]
         # print(curr_num_of_comments)
         data_prepared.num_of_comments.append(curr_num_of_comments)
+
+
+
+
+
 
 
 
@@ -553,7 +557,16 @@ class DataTopic:
             self.gpt_keywords_names = data_prepared.gpt_keywords_names
 
 
+    def yeald_complete_matrix(self, model_type="single_topic"):
+        # type can be "single_topic", "grouped_topic", "unrecognised_topic", "all_topics_together"
+        returner_y = np.copy(self.num_of_comments)
 
+        if model_type == "single_topic":
+            returner_matrix = np.hstack((self.URLs, self.authors, self.years, self.month_functions, self.parts_of_day,
+                                         self.nums_of_figs, self.leads_tfidf, self.keywords_tfidf, self.gpt_keywords_tfidf))
+
+        return returner_matrix, returner_y
+    
     def concat(self, other_data_topic):
         new_data_topic = DataTopic()
 
@@ -686,14 +699,136 @@ grouped_topics = topic_2_data_topic["stevilke"].copy().concat(topic_2_data_topic
 print(grouped_topics)
 
 
+all_ixs = list(range(prepared_data_len))
+all_data_topic = DataTopic(None, data_prepared, all_ixs)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import make_regression
-from sklearn.metrics import mean_squared_error
 
-def build_model_from_data_topic(data_topic):
+from sklearn.feature_selection import SelectKBest, mutual_info_regression
+from sklearn.feature_selection import mutual_info_regression
+
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+
+
+
+
+def mutual_info_best_ixs(X, y, n_best):
+
+    mutual_infos = mutual_info_regression(X, y, n_neighbors=20)
+
+    selector = SelectKBest(mutual_info_regression, k=n_best)
+    selector.fit(X, y)
+    ixs = selector.get_support(indices=True)
+
+    return ixs, mutual_infos
+
+def plot_me(mutual_infos):
+    shower = sorted(mutual_infos)
+    plt.plot(shower)
+    plt.show(block=False)
+
+
+
+def get_new_idf_count_from_tfidf_matrix(tfidf_matrix):
+    return np.sum(tfidf_matrix > 0, axis=0)
+
+def tfidf_word_importances(tfidf_matrix):
+
+    return np.sum(tfidf_matrix, axis=0)
+
+def word_importances(tfidf_matrix, y):
+    
+    # using pearson correlation:
+
+    returner = np.zeros(tfidf_matrix.shape[1])
+
+    for ix in range(tfidf_matrix.shape[1]):
+        returner[ix] = np.corrcoef(tfidf_matrix[:, ix].toarray().reshape(-1), y.reshape(-1))[0, 1]
+
+    returner = np.abs(returner)
+
+    sorted_ixs = np.argsort(returner)
+    sorted_returner = returner[sorted_ixs]
+
+    return sorted_ixs, sorted_returner
+
+
+def build_model_from_data_topic(data_topic, model_type="single_topic"):
+    # type can be "single_topic", "grouped_topic", "unrecognised_topic", "all_topics_together"
+
+
+
+    if model_type == "single_topic":
+
+        authors_best_ixs, authors_sorted_pearson_corrs = word_importances(data_topic.authors, data_topic.num_of_comments)
+
+        plot_me(authors_sorted_pearson_corrs)
+
+        authors_chosen_ixs = authors_best_ixs[-150:]
+        data_topic.authors = data_topic.authors[:, authors_chosen_ixs]
+        data_topic.authors_names = [data_topic.authors_names[ix] for ix in authors_chosen_ixs]
+
+        input("Waiting...")
+        plt.clf()
+
+
+
+        leads_best_ixs, leads_sorted_pearson_corrs = word_importances(data_topic.leads_tfidf, data_topic.num_of_comments)
+        keywords_best_ixs, keywords_sorted_pearson_corrs = word_importances(data_topic.keywords_tfidf, data_topic.num_of_comments)
+        gpt_keywords_best_ixs, gpt_keywords_sorted_pearson_corrs = word_importances(data_topic.gpt_keywords_tfidf, data_topic.num_of_comments)
+        
+        plot_me(leads_sorted_pearson_corrs)
+        plot_me(keywords_sorted_pearson_corrs)
+        plot_me(gpt_keywords_sorted_pearson_corrs)
+
+        leads_chosen_ixs = leads_best_ixs[-150:]
+        keywords_chosen_ixs = keywords_best_ixs[-150:]
+        gpt_keywords_chosen_ixs = gpt_keywords_best_ixs[-150:]
+
+        data_topic.leads_tfidf = data_topic.leads_tfidf[:, leads_chosen_ixs]
+        data_topic.leads_names = [data_topic.leads_names[ix] for ix in leads_chosen_ixs]
+
+        data_topic.keywords_tfidf = data_topic.keywords_tfidf[:, keywords_chosen_ixs]
+        data_topic.keywords_names = [data_topic.keywords_names[ix] for ix in keywords_chosen_ixs]
+
+        data_topic.gpt_keywords_tfidf = data_topic.gpt_keywords_tfidf[:, gpt_keywords_chosen_ixs]
+        data_topic.gpt_keywords_names = [data_topic.gpt_keywords_names[ix] for ix in gpt_keywords_chosen_ixs]
+
+
+        data_matrix, y = data_topic.yeald_complete_matrix(model_type=model_type)
+
+
+
+        input("Waiting...")
+        plt.clf()
+
+
+
 
     # This is going to have to be diferent for:
     # - topic data topics
@@ -701,6 +836,7 @@ def build_model_from_data_topic(data_topic):
     # - and also, make a model without topics with all data topics. - this is meant for unrecognised data topics.
 
 
+    # DONE with pearson corr:
     # do feature selection on the leads, keywords and gpt_keywords
     # Do mutual informaion from sklearn and choose best 150 or sth.
     # Make a graph of mutual information and show it so we can gauge it.
@@ -721,6 +857,10 @@ def build_model_from_data_topic(data_topic):
     # make a formula for the tradoff between:
     # loss of R2 compared to the best model, and the number of parameters that got reduced..
 
+    # Then join all these models into one class that makes the entire prediction for a list of test cases.
+    # Choosing the model based on the topic, transforming the test example into the correct one-ot encodings and such, and putting it in the model.
+    
+
 
 
 
@@ -728,15 +868,62 @@ def build_model_from_data_topic(data_topic):
     # model = LinearRegression()
     # model = Ridge(alpha=0.5)
     model = Lasso(alpha=0.5)
+    model.fit(data_matrix, y)
 
-    X = np.hstack((data_topic.years, data_topic.month_functions, data_topic.parts_of_day, data_topic.nums_of_figs, data_topic.topics_encoded, data_topic.leads_tfidf, data_topic.keywords_tfidf, data_topic.gpt_keywords_tfidf))
-    y = data_topic.num_of_comments
 
-    model.fit(X, y)
+
+    # Predict on the test set
+    y_pred = model.predict(X_test)
+
+    # Calculate performance metrics
+    r2 = r2_score(y_test, y_pred)
+    rmse = (mean_squared_error(y_test, y_pred))**(1/2)
+    mae = mean_absolute_error(y_test, y_pred)
+
+    print(f"R²: {r2}")
+    print(f"RMSE: {rmse}")
+    print(f"MAE: {mae}")
+
+    # Get the coefficients
+    coefficients = model.coef_
+    print("Coefficients:", coefficients)
+
+    # Plot predicted vs actual values
+    plt.figure(figsize=(10, 5))
+
+    plt.subplot(1, 2, 1)
+    plt.scatter(y_test, y_pred)
+    plt.xlabel("Actual Values")
+    plt.ylabel("Predicted Values")
+    plt.title("Predicted vs Actual Values")
+    plt.plot([min(y_test), max(y_test)], [min(y_test), max(y_test)], color='red')
+
+    # Plot residuals
+    residuals = y_test - y_pred
+    plt.subplot(1, 2, 2)
+    plt.scatter(y_pred, residuals)
+    plt.xlabel("Predicted Values")
+    plt.ylabel("Residuals")
+    plt.title("Residuals vs Predicted Values")
+    plt.axhline(y=0, color='red', linestyle='--')
+
+    plt.tight_layout()
+    plt.show()
+
+    # Plot coefficients
+    plt.figure(figsize=(10, 5))
+    plt.bar(range(len(coefficients)), coefficients)
+    plt.xlabel("Coefficient Index")
+    plt.ylabel("Coefficient Value")
+    plt.title("Lasso Coefficients")
+    plt.show()
 
     return model
 
 
+
+
+build_model_from_data_topic(topic_2_data_topic["gospodarstvo"], type="single_topic")
 
 
 
