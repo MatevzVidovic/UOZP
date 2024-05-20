@@ -2,7 +2,6 @@
 
 
 
-import hw4
 
 """
 
@@ -76,7 +75,7 @@ from sklearn.model_selection import train_test_split
 
 from data_preparation import prepare_data, DataTopic
 
-PRINTOUT = True
+PRINTOUT = False
 
 
 
@@ -98,6 +97,21 @@ from sklearn.feature_selection import mutual_info_regression
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 
 
+YEALD_MAT_PARAMS = {
+
+    "cap_comment_n" : "perc_and_root", # za 500 je izboljšanje
+    # can be None for no cap, integer for absolute cap, or "perc_and_root" for
+    # perc percentile value + (number - perc percentile value)^(1/root).
+    "perc" : 99,
+    "root" : 4,
+    
+    # This is not at all supported yet. Keep it False.
+    # The big problem is that how to pass parameters into testing calls of yeald_mat...
+    # and not have it do the capping.
+    "pca" : False,
+    "pca_n": 100, # num of pca components
+}
+
 
 
 def mutual_info_best_ixs(X, y, n_best):
@@ -113,9 +127,7 @@ def mutual_info_best_ixs(X, y, n_best):
 def plot_me(mutual_infos, label=""):
     shower = sorted(mutual_infos)
     plt.plot(shower, label=label)
-    plt.show(block=False)
 
-    return plt.gcf()
 
 
 
@@ -165,10 +177,11 @@ def build_model_from_data_topic(data_topic, model_type="single_topic", hyper_par
         URLs_chosen_ixs = URLs_best_ixs[-150:]
     else:
         URLs_chosen_ixs = URLs_best_ixs[-hyper_parameters["URLs"]:]
-    print("URLs_best_ixs: ")
-    print(URLs_best_ixs)
-    print("data_topic.URL_names: ")
-    print(data_topic.URL_names)
+    if PRINTOUT:
+        print("URLs_best_ixs: ")
+        print(URLs_best_ixs)
+        print("data_topic.URL_names: ")
+        print(data_topic.URL_names)
 
     authors_best_ixs, authors_sorted_pearson_corrs = word_importances(data_topic.authors, data_topic.num_of_comments)
     if hyper_parameters is None:
@@ -245,16 +258,19 @@ def build_model_from_data_topic(data_topic, model_type="single_topic", hyper_par
         plot_me(authors_sorted_pearson_corrs, label="authors")
         plot_me(leads_sorted_pearson_corrs, label="leads")
         plot_me(keywords_sorted_pearson_corrs, label="keywords")
-        curr_fig = plot_me(gpt_keywords_sorted_pearson_corrs, label="gpt_keywords")
-        plt.legend(loc="upper left")
+        plot_me(gpt_keywords_sorted_pearson_corrs, label="gpt_keywords")
+        plt.legend(loc="upper center")
+        plt.title(str(data_topic.topic) + ", " + str(model_type))
         plt.show(block=False)
+
+        plt.figure()
 
         
 
 
 
 
-    data_matrix, y = data_topic.yeald_complete_matrix(model_type=model_type)
+    data_matrix, y = data_topic.yeald_complete_matrix(model_type=model_type, params=YEALD_MAT_PARAMS)
 
 
 
@@ -300,15 +316,19 @@ def build_model_from_data_topic(data_topic, model_type="single_topic", hyper_par
     
 
 
-
+    print(10*"hej!\n")
 
 
     # model = LinearRegression()
     # model = Ridge(alpha=0.5)
     if hyper_parameters is None:
         model = Lasso(alpha=0.5)
-    else:
-        model = Lasso(alpha=hyper_parameters["alpha"])
+    elif hyper_parameters["method"] == "Basic":
+        model = LinearRegression()
+    elif hyper_parameters["method"] == "Ridge":
+        model = Ridge(alpha=hyper_parameters["alpha"], max_iter=hyper_parameters["max_iter"])
+    elif hyper_parameters["method"] == "Lasso":
+        model = Lasso(alpha=hyper_parameters["alpha"], max_iter=hyper_parameters["max_iter"])
 
     model.fit(data_matrix, y)
 
@@ -416,9 +436,7 @@ def test_model(model, test_cases_list, all_topics_together=False):
         X_test, y_test, y_pred = model.predict(test_cases_list)
 
     
-    print("y_test.: ", y_test)
-    print("y_pred: ", y_pred)
-
+    
 
 
     # Calculate performance metrics
@@ -443,7 +461,9 @@ def test_model(model, test_cases_list, all_topics_together=False):
 
     # Plot residuals
     residuals = y_test - y_pred
-    print("residuals: ", residuals)
+    if PRINTOUT:
+        print("residuals: ", residuals)
+
     plt.subplot(1, 2, 2)
     plt.scatter(y_pred, residuals)
     plt.xlabel("Predicted Values")
@@ -459,7 +479,7 @@ def test_model(model, test_cases_list, all_topics_together=False):
         
         # Get the coefficients
         coefficients = model.all_together_model.coef_
-        print("Coefficients:", coefficients)
+        # print("Coefficients:", coefficients)
 
         # Plot coefficients
         plt.figure(figsize=(10, 5))
@@ -496,17 +516,21 @@ if __name__ == "__main__":
     
     if True:
 
-        ohe_cutoff = 300
-        tfidf_cutoff = 300
+        ohe_cutoff = 150
+        tfidf_cutoff = 150
 
         hyper_parameters = {
+
+            "max_iter" : 1000,
+
             "URLs" : ohe_cutoff,
             "authors" : ohe_cutoff,
             "leads" : ohe_cutoff,
             "keywords" : tfidf_cutoff,
             "gpt_keywords" : tfidf_cutoff,
             "topics" : tfidf_cutoff,
-            "alpha" : 0.2
+            "alpha" : 0.05,
+            "method" : "Lasso", #Ridge in Basic ne delata # "Basic", "Ridge" or "Lasso"
         }
     
         curr_model = Model(topic_2_train_DT, grouped_topics_DT, all_together_DT, vectorizers, hyper_parameters=hyper_parameters)

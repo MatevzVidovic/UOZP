@@ -527,24 +527,108 @@ class DataTopic:
             self.gpt_keywords_names = data_prepared.gpt_keywords_names
 
 
-    def yeald_complete_matrix(self, model_type="single_topic") -> csr_matrix :
+    def yeald_complete_matrix(self, model_type="single_topic", params=None) -> csr_matrix :
         # type can be "single_topic", "grouped_topic", "unrecognised_topic", "all_topics_together"
         returner_y = np.copy(self.num_of_comments)
 
+
+
+
+
         if model_type == "single_topic" or model_type == "unrecognised_topic":
 
-            returner_matrix = np.hstack((self.URLs, self.authors, self.years, self.month_functions, self.parts_of_day,
+            non_tfidf_matrix = np.hstack((self.URLs, self.authors, self.years, self.month_functions, self.parts_of_day,
                                          self.nums_of_figs))
-            returner_matrix = csr_matrix(returner_matrix)
-            returner_matrix = hstack([returner_matrix, self.leads_tfidf, self.keywords_tfidf, self.gpt_keywords_tfidf])
+            non_tfidf_matrix = csr_matrix(non_tfidf_matrix)
         
         elif model_type == "grouped_topic" or model_type == "all_topics_together":
-            returner_matrix = np.hstack((self.topics_encoded, self.URLs, self.authors, self.years, self.month_functions, self.parts_of_day,
+            non_tfidf_matrix = np.hstack((self.topics_encoded, self.URLs, self.authors, self.years, self.month_functions, self.parts_of_day,
                                          self.nums_of_figs))
-            returner_matrix = csr_matrix(returner_matrix)
-            returner_matrix = hstack([returner_matrix, self.leads_tfidf, self.keywords_tfidf, self.gpt_keywords_tfidf])
+            non_tfidf_matrix = csr_matrix(non_tfidf_matrix)
+
+
+        tfidf_matrix = hstack([self.leads_tfidf, self.keywords_tfidf, self.gpt_keywords_tfidf])
+
+        returner_matrix = hstack([non_tfidf_matrix, tfidf_matrix])
         
+
+
+
+
+
+
+
+
+        if not params is None and not params["cap_comment_n"] is None:
+            if type(params["cap_comment_n"]) == int:
+                returner_y = np.minimum(returner_y, params["cap_comment_n"])
+            elif params["cap_comment_n"] == "perc_and_root":
+                percentile = params["perc"]
+                root = params["root"]
+                y_percentile = np.percentile(returner_y, percentile)
+                
+                y_to_cap_ixs = np.where(returner_y > y_percentile)
+                returner_y[y_to_cap_ixs] = y_percentile + (returner_y[y_to_cap_ixs] - y_percentile) ** (1 / root)
+
+
+
+
+
+        pca_cond = not params is None and params["pca"]        
+        if pca_cond:
+            from sklearn.decomposition import IncrementalPCA
+            pca = IncrementalPCA(n_components=params["pca_n"])
+            pca_data = pca.fit_transform(tfidf_matrix)
+            pca_data = csr_matrix(pca_data)
+            returner_matrix = hstack([returner_matrix, pca_data])
+
+        if pca_cond:
+            return returner_matrix, returner_y, pca
+
+
+
+
         return returner_matrix, returner_y
+    
+
+        """
+        ALJAZ = "brez_authorjev_in_mont_funcov" # "brez_authorjev" # 
+
+        if ALJAZ == "brez_authorjev":
+
+            if model_type == "single_topic" or model_type == "unrecognised_topic":
+
+                returner_matrix = np.hstack((self.URLs, self.years, self.month_functions, self.parts_of_day,
+                                            self.nums_of_figs))
+                returner_matrix = csr_matrix(returner_matrix)
+                returner_matrix = hstack([returner_matrix, self.leads_tfidf, self.keywords_tfidf, self.gpt_keywords_tfidf])
+            
+            elif model_type == "grouped_topic" or model_type == "all_topics_together":
+                returner_matrix = np.hstack((self.topics_encoded, self.URLs, self.years, self.month_functions, self.parts_of_day,
+                                            self.nums_of_figs))
+                returner_matrix = csr_matrix(returner_matrix)
+                returner_matrix = hstack([returner_matrix, self.leads_tfidf, self.keywords_tfidf, self.gpt_keywords_tfidf])
+            
+            return returner_matrix, returner_y
+        
+        if ALJAZ == "brez_authorjev_in_mont_funcov":
+
+            if model_type == "single_topic" or model_type == "unrecognised_topic":
+
+                returner_matrix = np.hstack((self.URLs, self.years, self.parts_of_day,
+                                            self.nums_of_figs))
+                returner_matrix = csr_matrix(returner_matrix)
+                returner_matrix = hstack([returner_matrix, self.leads_tfidf, self.keywords_tfidf, self.gpt_keywords_tfidf])
+            
+            elif model_type == "grouped_topic" or model_type == "all_topics_together":
+                returner_matrix = np.hstack((self.topics_encoded, self.URLs, self.years, self.parts_of_day,
+                                            self.nums_of_figs))
+                returner_matrix = csr_matrix(returner_matrix)
+                returner_matrix = hstack([returner_matrix, self.leads_tfidf, self.keywords_tfidf, self.gpt_keywords_tfidf])
+            
+            return returner_matrix, returner_y
+        """
+
     
     def concat(self, other_data_topic):
         new_data_topic = DataTopic()
