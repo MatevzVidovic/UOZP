@@ -75,19 +75,8 @@ from sklearn.model_selection import train_test_split
 
 from data_preparation import prepare_data, DataTopic
 
-PRINTOUT = False
 
-
-
-
-
-
-
-
-
-
-
-from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, LassoCV, RidgeCV, ElasticNetCV
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import make_regression
 
@@ -96,6 +85,13 @@ from sklearn.feature_selection import mutual_info_regression
 
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 
+from scipy.stats import spearmanr
+from scipy.stats import kendalltau
+
+
+
+
+PRINTOUT = False
 
 YEALD_MAT_PARAMS = {
 
@@ -270,7 +266,8 @@ def build_model_from_data_topic(data_topic, model_type="single_topic", hyper_par
 
 
 
-    data_matrix, y = data_topic.yeald_complete_matrix(model_type=model_type, params=YEALD_MAT_PARAMS)
+    data_matrix, y, normalizer = data_topic.yeald_complete_matrix(model_type=model_type, params=YEALD_MAT_PARAMS, normalizer="L2")
+
 
 
 
@@ -329,15 +326,22 @@ def build_model_from_data_topic(data_topic, model_type="single_topic", hyper_par
         model = Ridge(alpha=hyper_parameters["alpha"], max_iter=hyper_parameters["max_iter"])
     elif hyper_parameters["method"] == "Lasso":
         model = Lasso(alpha=hyper_parameters["alpha"], max_iter=hyper_parameters["max_iter"])
+    elif hyper_parameters["method"] == "LassoCV":
+        model = LassoCV(max_iter=hyper_parameters["max_iter"])
+    elif hyper_parameters["method"] == "RidgeCV":
+        model = RidgeCV(max_iter=hyper_parameters["max_iter"])
+    elif hyper_parameters["method"] == "ElasticNetCV":
+        model = ElasticNetCV(max_iter=hyper_parameters["max_iter"])
 
     model.fit(data_matrix, y)
 
-    return model, chosen_ixs_dict
+    return model, chosen_ixs_dict, normalizer
 
 
 
 
 
+from scipy.sparse.linalg import norm
 
 
 
@@ -352,20 +356,22 @@ class Model:
 
         self.single_topic_models = {}
         self.single_topic_models_chosen_ixs = {}
+        self.single_topic_normalizers = {}
         for topic in topic_2_train_DT.keys():
-            self.single_topic_models[topic], self.single_topic_models_chosen_ixs[topic] = build_model_from_data_topic(topic_2_train_DT[topic], model_type="single_topic", hyper_parameters=hyper_parameters)
+            self.single_topic_models[topic], self.single_topic_models_chosen_ixs[topic], self.single_topic_normalizers[topic] = build_model_from_data_topic(topic_2_train_DT[topic], model_type="single_topic", hyper_parameters=hyper_parameters)
         
         if grouped_topics_DT is not None:
-            self.grouped_topic_model, self.grouped_topic_model_chosen_ixs = build_model_from_data_topic(grouped_topics_DT, model_type="grouped_topic", hyper_parameters=hyper_parameters)
+            self.grouped_topic_model, self.grouped_topic_model_chosen_ixs, self.grouped_topic_normalizer = build_model_from_data_topic(grouped_topics_DT, model_type="grouped_topic", hyper_parameters=hyper_parameters)
             self.grouped_topic_model_topics = grouped_topics_DT.topic.split(",")
         else:
             self.grouped_topic_model = None
             self.grouped_topic_model_chosen_ixs = None
             self.grouped_topic_model_topics = []
+            self.grouped_topic_normalizer = None
 
-        self.unrecognised_topic_model, self.unrecognised_topic_model_chosen_ixs = build_model_from_data_topic(all_together_DT, model_type="unrecognised_topic", hyper_parameters=hyper_parameters)
+        self.unrecognised_topic_model, self.unrecognised_topic_model_chosen_ixs, self.unrecognised_topic_normalizer = build_model_from_data_topic(all_together_DT, model_type="unrecognised_topic", hyper_parameters=hyper_parameters)
 
-        self.all_together_model, self.all_together_model_chosen_ixs = build_model_from_data_topic(all_together_DT, model_type="all_topics_together", hyper_parameters=hyper_parameters)
+        self.all_together_model, self.all_together_model_chosen_ixs, self.all_together_normalizer = build_model_from_data_topic(all_together_DT, model_type="all_topics_together", hyper_parameters=hyper_parameters)
 
 
     def predict(self, test_cases_list, all_together_model=False):
@@ -375,11 +381,15 @@ class Model:
         if all_together_model:
             all_data_topic.tfidf_chosen_ixs_trim(**self.all_together_model_chosen_ixs)
             all_data_topic.one_hot_encoding(self.all_together_DT)
-            X_test, y_test = all_data_topic.yeald_complete_matrix(model_type="all_topics_together")
+            X_test, y_test, attr_names = all_data_topic.yeald_complete_matrix(model_type="all_topics_together", give_names=True, normalizer=self.all_together_normalizer)
             y_test = np.reshape(y_test, (-1))
             y_pred = self.all_together_model.predict(X_test)
-            return X_test, y_test, y_pred
-        
+            return X_test, y_test, y_pred, attr_names
+
+
+
+
+
 
         X_test_final = None
         y_test_final = np.zeros(len(test_cases_list))
@@ -395,14 +405,19 @@ class Model:
             if topic in self.grouped_topic_model_topics:
                 DT.tfidf_chosen_ixs_trim(**self.grouped_topic_model_chosen_ixs)
                 DT.one_hot_encoding(self.grouped_topics_DT)
-                X_test, y_test = DT.yeald_complete_matrix(model_type="grouped_topic")
+                X_test, y_test = DT.yeald_complete_matrix(model_type="grouped_topic", normalizer=self.grouped_topic_normalizer)
                 y_test = np.reshape(y_test, (-1))
                 y_pred = self.grouped_topic_model.predict(X_test)
                 
             elif topic in self.single_topic_models:
                 DT.tfidf_chosen_ixs_trim(**self.single_topic_models_chosen_ixs[topic])
                 DT.one_hot_encoding(self.topic_2_train_DT[topic])
-                X_test, y_test = DT.yeald_complete_matrix(model_type="single_topic")
+                X_test, y_test = DT.yeald_complete_matrix(model_type="single_topic", normalizer=self.single_topic_normalizers[topic])
+                
+                # print("norm(X_test, axis=0, ord=2)")
+                # print(norm(X_test, axis=0, ord=2))
+                # input("waiting...")
+
                 y_test = np.reshape(y_test, (-1))
                 y_pred = self.single_topic_models[topic].predict(X_test)
 
@@ -410,7 +425,7 @@ class Model:
             
                 DT.tfidf_chosen_ixs_trim(**self.unrecognised_topic_model_chosen_ixs)
                 DT.one_hot_encoding(self.all_together_DT)
-                X_test, y_test = DT.yeald_complete_matrix(model_type="unrecognised_topic")
+                X_test, y_test = DT.yeald_complete_matrix(model_type="unrecognised_topic", normalizer=self.unrecognised_topic_normalizer)
                 y_test = np.reshape(y_test, (-1))
                 y_pred = self.unrecognised_topic_model.predict(X_test)
             
@@ -431,7 +446,7 @@ def test_model(model, test_cases_list, all_topics_together=False):
     assert type(model) == Model
 
     if all_topics_together:
-        X_test, y_test, y_pred = model.predict(test_cases_list, all_together_model=True)
+        X_test, y_test, y_pred, attr_names = model.predict(test_cases_list, all_together_model=True)
     else:
         X_test, y_test, y_pred = model.predict(test_cases_list)
 
@@ -443,10 +458,15 @@ def test_model(model, test_cases_list, all_topics_together=False):
     r2 = r2_score(y_test, y_pred)
     rmse = (mean_squared_error(y_test, y_pred))**(1/2)
     mae = mean_absolute_error(y_test, y_pred)
+    spearman = spearmanr(y_test, y_pred)
+    kendall = kendalltau(y_test, y_pred)
 
     print(f"R²: {r2}")
     print(f"RMSE: {rmse}")
     print(f"MAE: {mae}")
+    print(f"Spearman: {spearman}")
+    print(f"Kendall: {kendall}")
+
 
 
     # Plot predicted vs actual values
@@ -478,15 +498,24 @@ def test_model(model, test_cases_list, all_topics_together=False):
     if all_topics_together:
         
         # Get the coefficients
-        coefficients = model.all_together_model.coef_
-        # print("Coefficients:", coefficients)
+        coefficients = np.array(model.all_together_model.coef_)
+        sorted_coefficients_ixs = np.argsort(np.abs(coefficients))
+        sorted_coefficients_ixs = sorted_coefficients_ixs[:-10:-1]
+        
+        best_coeffs_names =[attr_names[ix] for ix in sorted_coefficients_ixs]
+        best_coefs_vals = [coefficients[ix] for ix in sorted_coefficients_ixs]
+
+        num_of_zeros = np.sum(coefficients == 0)
+        print(f"Number of zero coefficients: {num_of_zeros}")
+        percent_of_zeros = num_of_zeros / len(coefficients) * 100
+        print(f"Percentage of zero coefficients: {percent_of_zeros:.2f}%")
 
         # Plot coefficients
         plt.figure(figsize=(10, 5))
-        plt.bar(range(len(coefficients)), coefficients)
-        plt.xlabel("Coefficient Index")
+        plt.bar(best_coeffs_names, best_coefs_vals)
+        plt.xlabel("Attribute name")
         plt.ylabel("Coefficient Value")
-        plt.title("Lasso Coefficients")
+        plt.title("Model coefficients")
         plt.show()
 
     return model
@@ -521,7 +550,7 @@ if __name__ == "__main__":
 
         hyper_parameters = {
 
-            "max_iter" : 1000,
+            "max_iter" : 100,
 
             "URLs" : ohe_cutoff,
             "authors" : ohe_cutoff,
@@ -531,6 +560,7 @@ if __name__ == "__main__":
             "topics" : tfidf_cutoff,
             "alpha" : 0.05,
             "method" : "Lasso", #Ridge in Basic ne delata # "Basic", "Ridge" or "Lasso"
+            # or LassoCV, RidgeCV, ElasticNetCV
         }
     
         curr_model = Model(topic_2_train_DT, grouped_topics_DT, all_together_DT, vectorizers, hyper_parameters=hyper_parameters)

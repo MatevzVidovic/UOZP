@@ -23,6 +23,9 @@ from lemmagen3 import Lemmatizer
 
 from scipy.sparse import csr_matrix, hstack
 
+from scipy.sparse.linalg import norm
+
+
 
 URL_KEEP_TOPIC = False
 LEMMATIZE = True
@@ -394,6 +397,35 @@ def months_into_functions(months):
 
 
 
+class MyNormalizer:
+
+    def __init__(self, norm=2):
+        self.norm = norm
+        self.scaling_factors = None
+
+    def fit(self, X):
+
+        if X.ndim < 2:
+            return
+
+        try:
+            self.scaling_factors = norm(X, axis=0, ord=self.norm)
+            self.scaling_factors = np.where(self.scaling_factors == 0, 1, self.scaling_factors)
+        except:
+            print("Error with self.scaling_factors = np.linalg.norm(X, axis=0, ord=self.norm).reshape(1, -1). Giving X:")
+            print(X)
+            self.scaling_factors = norm(X, axis=0, ord=self.norm)
+            
+
+
+    def transform(self, X):
+
+        if X.ndim < 2:
+            return
+        
+        returner = X / self.scaling_factors
+        return returner
+
 
 
 
@@ -404,9 +436,15 @@ def vertical_concat(firs_np, second_np):
     return returner
 
 
-def copy_list(list_):
+def copy_list(list_, turn_to_strings=False):
     returner = []
-    returner.extend(list_)
+    
+    if turn_to_strings:
+        for item in list_:
+            returner.append(str(item))
+    else:
+        returner.extend(list_)
+    
     return returner
 
 class DataTopic:
@@ -455,7 +493,7 @@ class DataTopic:
             self.URLs = copy_list(data_prepared.URLs) # becomes np.array() in one_hot_encoding()
             self.URL_names = [] # gets filled in one_hot_encoding()
 
-            self.authors = copy_list(data_prepared.authors) # becomes np.array() in one_hot_encoding()
+            self.authors = copy_list(data_prepared.authors, turn_to_strings=True) # becomes np.array() in one_hot_encoding()
             self.authors_names = [] # gets filled in one_hot_encoding()
 
             self.years = np.copy(data_prepared.years)
@@ -527,8 +565,9 @@ class DataTopic:
             self.gpt_keywords_names = data_prepared.gpt_keywords_names
 
 
-    def yeald_complete_matrix(self, model_type="single_topic", params=None) -> csr_matrix :
+    def yeald_complete_matrix(self, model_type="single_topic", params=None, give_names=False, normalizer=None) -> csr_matrix :
         # type can be "single_topic", "grouped_topic", "unrecognised_topic", "all_topics_together"
+        # normalizer can be None to ignore normalization, "L2" for L2 normalization, or an instance of MyNormalizer
         returner_y = np.copy(self.num_of_comments)
 
 
@@ -540,17 +579,40 @@ class DataTopic:
             non_tfidf_matrix = np.hstack((self.URLs, self.authors, self.years, self.month_functions, self.parts_of_day,
                                          self.nums_of_figs))
             non_tfidf_matrix = csr_matrix(non_tfidf_matrix)
+
+            non_tfidf_names = self.URL_names + self.authors_names + ["year"] +  self.month_functions_names + self.parts_of_day_names + ["num_of_figs"]
         
         elif model_type == "grouped_topic" or model_type == "all_topics_together":
             non_tfidf_matrix = np.hstack((self.topics_encoded, self.URLs, self.authors, self.years, self.month_functions, self.parts_of_day,
                                          self.nums_of_figs))
             non_tfidf_matrix = csr_matrix(non_tfidf_matrix)
 
+            non_tfidf_names = self.topics_names + self.URL_names + self.authors_names + ["year"] +  self.month_functions_names + self.parts_of_day_names + ["num_of_figs"]
 
         tfidf_matrix = hstack([self.leads_tfidf, self.keywords_tfidf, self.gpt_keywords_tfidf])
+        tfidf_names = self.leads_names + self.keywords_names + self.gpt_keywords_names
 
         returner_matrix = hstack([non_tfidf_matrix, tfidf_matrix])
         
+        
+
+
+        returner = [returner_matrix, returner_y]
+
+        if give_names:
+            returner_names = non_tfidf_names + tfidf_names
+
+            try:
+                returner_names = np.array(returner_names)
+            except:
+                print("Error with returner_names = np.array(returner_names). Giving names:")
+                print(returner_names)
+                returner_names = np.array(returner_names)
+            
+            returner.append(returner_names)
+        
+
+
 
 
 
@@ -571,9 +633,7 @@ class DataTopic:
                 returner_y[y_to_cap_ixs] = y_percentile + (returner_y[y_to_cap_ixs] - y_percentile) ** (1 / root)
 
 
-
-
-
+        """
         pca_cond = not params is None and params["pca"]        
         if pca_cond:
             from sklearn.decomposition import IncrementalPCA
@@ -582,13 +642,28 @@ class DataTopic:
             pca_data = csr_matrix(pca_data)
             returner_matrix = hstack([returner_matrix, pca_data])
 
-        if pca_cond:
-            return returner_matrix, returner_y, pca
+            if give_names:
+                return returner_matrix, returner_y, returner_names, pca
+            else:
+                return returner_matrix, returner_y, pca
+        """
 
+        if not normalizer is None:
 
+            if type(normalizer) == str:
+                if normalizer == "L2":
+                    normalizer = MyNormalizer(norm=2)
+                    normalizer.fit(returner_matrix)
+                    returner_matrix = normalizer.transform(returner_matrix)
+                
+                returner[0] = returner_matrix
+                returner.append(normalizer)
 
-
-        return returner_matrix, returner_y
+            else:
+                returner_matrix = normalizer.transform(returner_matrix)
+                returner[0] = returner_matrix
+        
+        return returner
     
 
         """
