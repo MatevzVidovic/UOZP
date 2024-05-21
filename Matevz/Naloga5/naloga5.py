@@ -2,7 +2,6 @@
 
 
 
-import hw4
 
 """
 
@@ -76,42 +75,8 @@ from sklearn.model_selection import train_test_split
 
 from data_preparation import prepare_data, DataTopic
 
-PRINTOUT = True
 
-
-
-
-
-if True:
-
-    # Path to your .json.gzip file
-    file_path = './data/rtvslo_train.json.gzip'
-
-    # Open the gzip file
-    with gzip.open(file_path, 'rt', encoding='utf-8') as f:
-        # Read and parse the JSON data
-        data = json.load(f)
-
-
-    print("len(data): " + str(len(data)))
-    print("data[0].keys(): " + str(data[0].keys()))
-
-
-    train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
-    train_data, val_data = train_test_split(train_data, test_size=0.2, random_state=42)
-
-    topic_2_train_DT, grouped_topics_DT, all_together_DT, vectorizers = prepare_data(train_data)
-
-
-
-
-
-
-
-
-
-
-from sklearn.linear_model import LinearRegression, Ridge, Lasso
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, LassoCV, RidgeCV, ElasticNetCV
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import make_regression
 
@@ -120,6 +85,28 @@ from sklearn.feature_selection import mutual_info_regression
 
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 
+from scipy.stats import spearmanr
+from scipy.stats import kendalltau
+
+
+
+
+PRINTOUT = False
+
+YEALD_MAT_PARAMS = {
+
+    "cap_comment_n" : "perc_and_root", # za 500 je izboljšanje
+    # can be None for no cap, integer for absolute cap, or "perc_and_root" for
+    # perc percentile value + (number - perc percentile value)^(1/root).
+    "perc" : 99,
+    "root" : 4,
+    
+    # This is not at all supported yet. Keep it False.
+    # The big problem is that how to pass parameters into testing calls of yeald_mat...
+    # and not have it do the capping.
+    "pca" : False,
+    "pca_n": 100, # num of pca components
+}
 
 
 
@@ -133,10 +120,10 @@ def mutual_info_best_ixs(X, y, n_best):
 
     return ixs, mutual_infos
 
-def plot_me(mutual_infos):
+def plot_me(mutual_infos, label=""):
     shower = sorted(mutual_infos)
-    plt.plot(shower)
-    plt.show(block=False)
+    plt.plot(shower, label=label)
+
 
 
 
@@ -147,14 +134,18 @@ def tfidf_word_importances(tfidf_matrix):
 
     return np.sum(tfidf_matrix, axis=0)
 
-def word_importances(tfidf_matrix, y):
+def word_importances(matrix, y):
     
     # using pearson correlation:
 
-    returner = np.zeros(tfidf_matrix.shape[1])
+    returner = np.zeros(matrix.shape[1])
 
-    for ix in range(tfidf_matrix.shape[1]):
-        returner[ix] = np.corrcoef(tfidf_matrix[:, ix].toarray().reshape(-1), y.reshape(-1))[0, 1]
+    for ix in range(matrix.shape[1]):
+        if isinstance(matrix, np.ndarray):
+            returner[ix] = np.corrcoef(matrix[:, ix].reshape(-1), y.reshape(-1))[0, 1]
+        else:
+            returner[ix] = np.corrcoef(matrix[:, ix].toarray().reshape(-1), y.reshape(-1))[0, 1]
+
 
     returner = np.abs(returner)
 
@@ -164,48 +155,128 @@ def word_importances(tfidf_matrix, y):
     return sorted_ixs, sorted_returner
 
 
-def build_model_from_data_topic(data_topic, model_type="single_topic"):
+def build_model_from_data_topic(data_topic, model_type="single_topic", hyper_parameters=None):
+    # Be aware that this changes the data topic!
+    # for URLs, authors, topics_encoded it trims them to the best 150 features. 
     # type can be "single_topic", "grouped_topic", "unrecognised_topic", "all_topics_together"
 
-    assert type(data_topic) == DataTopic
+    try:
+        assert type(data_topic) == DataTopic
+    except:
+        print(type(data_topic))
+        assert type(data_topic) == DataTopic
 
 
-    if model_type == "single_topic":
 
+    URLs_best_ixs, URLs_sorted_pearson_corrs = word_importances(data_topic.URLs, data_topic.num_of_comments)
+    if hyper_parameters is None:
+        URLs_chosen_ixs = URLs_best_ixs[-150:]
+    else:
+        URLs_chosen_ixs = URLs_best_ixs[-hyper_parameters["URLs"]:]
+    if PRINTOUT:
+        print("URLs_best_ixs: ")
+        print(URLs_best_ixs)
+        print("data_topic.URL_names: ")
+        print(data_topic.URL_names)
 
-
-
-
-        leads_best_ixs, leads_sorted_pearson_corrs = word_importances(data_topic.leads_tfidf, data_topic.num_of_comments)
-        keywords_best_ixs, keywords_sorted_pearson_corrs = word_importances(data_topic.keywords_tfidf, data_topic.num_of_comments)
-        gpt_keywords_best_ixs, gpt_keywords_sorted_pearson_corrs = word_importances(data_topic.gpt_keywords_tfidf, data_topic.num_of_comments)
-        
-        authors_best_ixs, authors_sorted_pearson_corrs = word_importances(data_topic.authors, data_topic.num_of_comments)
-        plot_me(authors_sorted_pearson_corrs)
-        plot_me(leads_sorted_pearson_corrs)
-        plot_me(keywords_sorted_pearson_corrs)
-        plot_me(gpt_keywords_sorted_pearson_corrs)
-
+    authors_best_ixs, authors_sorted_pearson_corrs = word_importances(data_topic.authors, data_topic.num_of_comments)
+    if hyper_parameters is None:
         authors_chosen_ixs = authors_best_ixs[-150:]
+    else:
+        authors_chosen_ixs = authors_best_ixs[-hyper_parameters["authors"]:]
+
+
+
+
+    # samo razlika, da single in unrecognised ne delata z topics in jih zato ne režemo
+    # Zato imata primera pač drugačen trimming
+
+    if model_type == "grouped_topic" or model_type == "all_topics_together":
+
+        topics_best_ixs, topics_sorted_pears_corrs = word_importances(data_topic.topics_encoded, data_topic.num_of_comments)
+        if hyper_parameters is None:
+            topics_chosen_ixs = topics_best_ixs[-150:]
+        else:
+            topics_chosen_ixs = topics_best_ixs[-hyper_parameters["topics"]:]
+
+        if PRINTOUT:
+            plot_me(topics_sorted_pears_corrs, label="topics")
+    
+    elif model_type == "single_topic" or model_type == "unrecognised_topic":
+
+        topics_chosen_ixs = None
+
+
+    data_topic.one_hot_encoded_chosen_ixs_trim(URLs_chosen_ixs, authors_chosen_ixs, topics_chosen_ixs)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    leads_best_ixs, leads_sorted_pearson_corrs = word_importances(data_topic.leads_tfidf, data_topic.num_of_comments)
+    keywords_best_ixs, keywords_sorted_pearson_corrs = word_importances(data_topic.keywords_tfidf, data_topic.num_of_comments)
+    gpt_keywords_best_ixs, gpt_keywords_sorted_pearson_corrs = word_importances(data_topic.gpt_keywords_tfidf, data_topic.num_of_comments)
+    
+    if hyper_parameters is None:
         leads_chosen_ixs = leads_best_ixs[-150:]
         keywords_chosen_ixs = keywords_best_ixs[-150:]
         gpt_keywords_chosen_ixs = gpt_keywords_best_ixs[-150:]
+    else:
+        leads_chosen_ixs = leads_best_ixs[-hyper_parameters["leads"]:]
+        keywords_chosen_ixs = keywords_best_ixs[-hyper_parameters["keywords"]:]
+        gpt_keywords_chosen_ixs = gpt_keywords_best_ixs[-hyper_parameters["gpt_keywords"]:]
+
+    data_topic.tfidf_chosen_ixs_trim(leads_chosen_ixs, keywords_chosen_ixs, gpt_keywords_chosen_ixs)
+
+    chosen_ixs_dict = {
+        "leads_chosen_ixs" : leads_chosen_ixs,
+        "keywords_chosen_ixs" : keywords_chosen_ixs,
+        "gpt_keywords_chosen_ixs" : gpt_keywords_chosen_ixs}
 
 
-        data_topic.tfidf_chosen_ixs_trim(authors_chosen_ixs, leads_chosen_ixs, keywords_chosen_ixs, gpt_keywords_chosen_ixs)
-
-        chosen_ixs_dict = {
-            "authors_chosen_ixs" : authors_chosen_ixs,
-            "leads_chosen_ixs" : leads_chosen_ixs,
-            "keywords_chosen_ixs" : keywords_chosen_ixs,
-            "gpt_keywords_chosen_ixs" : gpt_keywords_chosen_ixs}
-
-        data_matrix, y = data_topic.yeald_complete_matrix(model_type="single_topic")
 
 
-        if PRINTOUT:
-            input("Waiting...")
-            plt.clf()
+    if PRINTOUT:
+        plot_me(URLs_sorted_pearson_corrs, label="URLs")
+        plot_me(authors_sorted_pearson_corrs, label="authors")
+        plot_me(leads_sorted_pearson_corrs, label="leads")
+        plot_me(keywords_sorted_pearson_corrs, label="keywords")
+        plot_me(gpt_keywords_sorted_pearson_corrs, label="gpt_keywords")
+        plt.legend(loc="upper center")
+        plt.title(str(data_topic.topic) + ", " + str(model_type))
+        plt.show(block=False)
+
+        plt.figure()
+
+        
+
+
+
+
+    data_matrix, y, normalizer = data_topic.yeald_complete_matrix(model_type=model_type, params=YEALD_MAT_PARAMS, normalizer="L2")
+
+
+
+
+    # if PRINTOUT:
+    #     input("Waiting...")
+    #     plt.clf()
+
+
+
 
 
 
@@ -242,91 +313,161 @@ def build_model_from_data_topic(data_topic, model_type="single_topic"):
     
 
 
-
+    print(10*"hej!\n")
 
 
     # model = LinearRegression()
     # model = Ridge(alpha=0.5)
-    model = Lasso(alpha=0.5)
+    if hyper_parameters is None:
+        model = Lasso(alpha=0.5)
+    elif hyper_parameters["method"] == "Basic":
+        model = LinearRegression()
+    elif hyper_parameters["method"] == "Ridge":
+        model = Ridge(alpha=hyper_parameters["alpha"], max_iter=hyper_parameters["max_iter"])
+    elif hyper_parameters["method"] == "Lasso":
+        model = Lasso(alpha=hyper_parameters["alpha"], max_iter=hyper_parameters["max_iter"])
+    elif hyper_parameters["method"] == "LassoCV":
+        model = LassoCV(max_iter=hyper_parameters["max_iter"])
+    elif hyper_parameters["method"] == "RidgeCV":
+        model = RidgeCV(max_iter=hyper_parameters["max_iter"])
+    elif hyper_parameters["method"] == "ElasticNetCV":
+        model = ElasticNetCV(max_iter=hyper_parameters["max_iter"])
+
     model.fit(data_matrix, y)
 
-    return model, chosen_ixs_dict
+    return model, chosen_ixs_dict, normalizer
+
+
+
+
+
+from scipy.sparse.linalg import norm
 
 
 
 class Model:
 
-    def __init__(self, topic_2_train_DT, grouped_topics_DT, all_together_DT, vectorizers):
+    def __init__(self, topic_2_train_DT, grouped_topics_DT, all_together_DT, vectorizers, hyper_parameters=None):
+
+        self.topic_2_train_DT = topic_2_train_DT
+        self.grouped_topics_DT = grouped_topics_DT
+        self.all_together_DT = all_together_DT
+        self.vectorizers = vectorizers
 
         self.single_topic_models = {}
         self.single_topic_models_chosen_ixs = {}
+        self.single_topic_normalizers = {}
         for topic in topic_2_train_DT.keys():
-            self.single_topic_models[topic], self.single_topic_models_chosen_ixs[topic] = build_model_from_data_topic(topic_2_train_DT[topic], model_type="single_topic")
+            self.single_topic_models[topic], self.single_topic_models_chosen_ixs[topic], self.single_topic_normalizers[topic] = build_model_from_data_topic(topic_2_train_DT[topic], model_type="single_topic", hyper_parameters=hyper_parameters)
         
-        self.grouped_topic_model, self.grouped_topic_model_chosen_ixs = build_model_from_data_topic(grouped_topics_DT, model_type="grouped_topic")
-        self.grouped_topic_model_topics = grouped_topics_DT.topic.split(",")
+        if grouped_topics_DT is not None:
+            self.grouped_topic_model, self.grouped_topic_model_chosen_ixs, self.grouped_topic_normalizer = build_model_from_data_topic(grouped_topics_DT, model_type="grouped_topic", hyper_parameters=hyper_parameters)
+            self.grouped_topic_model_topics = grouped_topics_DT.topic.split(",")
+        else:
+            self.grouped_topic_model = None
+            self.grouped_topic_model_chosen_ixs = None
+            self.grouped_topic_model_topics = []
+            self.grouped_topic_normalizer = None
 
-        self.all_together_model, self.all_together_model_chosen_ixs = build_model_from_data_topic(all_together_DT, model_type="all_topics_together")
+        self.unrecognised_topic_model, self.unrecognised_topic_model_chosen_ixs, self.unrecognised_topic_normalizer = build_model_from_data_topic(all_together_DT, model_type="unrecognised_topic", hyper_parameters=hyper_parameters)
 
-        self.vectorizers = vectorizers
+        self.all_together_model, self.all_together_model_chosen_ixs, self.all_together_normalizer = build_model_from_data_topic(all_together_DT, model_type="all_topics_together", hyper_parameters=hyper_parameters)
 
-    def predict(self, test_cases_list):
 
-        topic_2_train_DT, _, _, _ = prepare_data(test_cases_list, vectorizers=self.vectorizers)
+    def predict(self, test_cases_list, all_together_model=False):
+
+        topic_2_train_DT, _, all_data_topic, _, topic_2_ixs, remaining_original_article_ixs = prepare_data(test_cases_list, all_vectorizers=self.vectorizers, is_test_data=True)
+
+        if all_together_model:
+            all_data_topic.tfidf_chosen_ixs_trim(**self.all_together_model_chosen_ixs)
+            all_data_topic.one_hot_encoding(self.all_together_DT)
+            X_test, y_test, attr_names = all_data_topic.yeald_complete_matrix(model_type="all_topics_together", give_names=True, normalizer=self.all_together_normalizer)
+            y_test = np.reshape(y_test, (-1))
+            y_pred = self.all_together_model.predict(X_test)
+            return X_test, y_test, y_pred, attr_names
+
+
+
+
+
+
+        X_test_final = None
+        y_test_final = np.zeros(len(test_cases_list))
+        y_pred_final = np.zeros(len(test_cases_list))
 
         for topic, DT in topic_2_train_DT.items():
 
             assert type(DT) == DataTopic
 
+
+            original_ixs = remaining_original_article_ixs[topic_2_ixs[topic]]
+
             if topic in self.grouped_topic_model_topics:
                 DT.tfidf_chosen_ixs_trim(**self.grouped_topic_model_chosen_ixs)
-                X_test, y_test = DT.yeald_complete_matrix(model_type="grouped_topic")
+                DT.one_hot_encoding(self.grouped_topics_DT)
+                X_test, y_test = DT.yeald_complete_matrix(model_type="grouped_topic", normalizer=self.grouped_topic_normalizer)
+                y_test = np.reshape(y_test, (-1))
                 y_pred = self.grouped_topic_model.predict(X_test)
-                return X_test, y_test, y_pred
-            
-            if topic in self.single_topic_models:
-                X_test, y_test = DT.yeald_complete_matrix(model_type="single_topic")
+                
+            elif topic in self.single_topic_models:
+                DT.tfidf_chosen_ixs_trim(**self.single_topic_models_chosen_ixs[topic])
+                DT.one_hot_encoding(self.topic_2_train_DT[topic])
+                X_test, y_test = DT.yeald_complete_matrix(model_type="single_topic", normalizer=self.single_topic_normalizers[topic])
+                
+                # print("norm(X_test, axis=0, ord=2)")
+                # print(norm(X_test, axis=0, ord=2))
+                # input("waiting...")
+
+                y_test = np.reshape(y_test, (-1))
                 y_pred = self.single_topic_models[topic].predict(X_test)
-                return X_test, y_test, y_pred
+
+            else:
             
+                DT.tfidf_chosen_ixs_trim(**self.unrecognised_topic_model_chosen_ixs)
+                DT.one_hot_encoding(self.all_together_DT)
+                X_test, y_test = DT.yeald_complete_matrix(model_type="unrecognised_topic", normalizer=self.unrecognised_topic_normalizer)
+                y_test = np.reshape(y_test, (-1))
+                y_pred = self.unrecognised_topic_model.predict(X_test)
             
-            X_test, y_test = DT.yeald_complete_matrix(model_type="all_topics_together")
-            y_pred = self.all_together_model.predict(X_test)
-            return X_test, y_test, y_pred
+            y_test_final[original_ixs] = y_test
+            y_pred_final[original_ixs] = y_pred
+
+
+        return X_test_final, y_test_final, y_pred_final
 
 
 
 
-
-
-def test_model(model, test_cases_list, model_type=None):
+def test_model(model, test_cases_list, all_topics_together=False):
     # model type can be None or "all_topics_together"
     # If None, Model automatically uses "single_topic", "grouped_topic", "unrecognised_topic" depending on
     # matches in the training data.
 
-    if model_type == "all_topics_together":
-        # set topics of all lines to "unrecognizeable"
-        # This will force the model to work with the all_together_model  
-        for example in test_cases_list:
-            example["topics"] = "unrecognizeable"
+    assert type(model) == Model
 
-    X_test, y_test, y_pred = model.predict(test_cases_list)
+    if all_topics_together:
+        X_test, y_test, y_pred, attr_names = model.predict(test_cases_list, all_together_model=True)
+    else:
+        X_test, y_test, y_pred = model.predict(test_cases_list)
 
-    # Predict on the test set
-    y_pred = model.predict(X_test)
+    
+    
+
 
     # Calculate performance metrics
     r2 = r2_score(y_test, y_pred)
     rmse = (mean_squared_error(y_test, y_pred))**(1/2)
     mae = mean_absolute_error(y_test, y_pred)
+    spearman = spearmanr(y_test, y_pred)
+    kendall = kendalltau(y_test, y_pred)
 
     print(f"R²: {r2}")
     print(f"RMSE: {rmse}")
     print(f"MAE: {mae}")
+    print(f"Spearman: {spearman}")
+    print(f"Kendall: {kendall}")
 
-    # Get the coefficients
-    coefficients = model.coef_
-    print("Coefficients:", coefficients)
+
 
     # Plot predicted vs actual values
     plt.figure(figsize=(10, 5))
@@ -340,6 +481,9 @@ def test_model(model, test_cases_list, model_type=None):
 
     # Plot residuals
     residuals = y_test - y_pred
+    if PRINTOUT:
+        print("residuals: ", residuals)
+
     plt.subplot(1, 2, 2)
     plt.scatter(y_pred, residuals)
     plt.xlabel("Predicted Values")
@@ -350,21 +494,95 @@ def test_model(model, test_cases_list, model_type=None):
     plt.tight_layout()
     plt.show()
 
-    # Plot coefficients
-    plt.figure(figsize=(10, 5))
-    plt.bar(range(len(coefficients)), coefficients)
-    plt.xlabel("Coefficient Index")
-    plt.ylabel("Coefficient Value")
-    plt.title("Lasso Coefficients")
-    plt.show()
+
+    if all_topics_together:
+        
+        # Get the coefficients
+        coefficients = np.array(model.all_together_model.coef_)
+        sorted_coefficients_ixs = np.argsort(np.abs(coefficients))
+        sorted_coefficients_ixs = sorted_coefficients_ixs[:-10:-1]
+        
+        best_coeffs_names =[attr_names[ix] for ix in sorted_coefficients_ixs]
+        best_coefs_vals = [coefficients[ix] for ix in sorted_coefficients_ixs]
+
+        num_of_zeros = np.sum(coefficients == 0)
+        print(f"Number of zero coefficients: {num_of_zeros}")
+        percent_of_zeros = num_of_zeros / len(coefficients) * 100
+        print(f"Percentage of zero coefficients: {percent_of_zeros:.2f}%")
+
+        # Plot coefficients
+        plt.figure(figsize=(10, 5))
+        plt.bar(best_coeffs_names, best_coefs_vals)
+        plt.xlabel("Attribute name")
+        plt.ylabel("Coefficient Value")
+        plt.title("Model coefficients")
+        plt.show()
 
     return model
 
 
 if __name__ == "__main__":
 
-    curr_model = Model(topic_2_train_DT, grouped_topics_DT, all_together_DT, vectorizers)
-    test_model(curr_model, test_data, model_type="single_topic")
+    # Path to your .json.gzip file
+    file_path = './data/rtvslo_train.json.gzip'
+
+    # Open the gzip file
+    with gzip.open(file_path, 'rt', encoding='utf-8') as f:
+        # Read and parse the JSON data
+        data = json.load(f)
+
+    if PRINTOUT:
+        print("len(data): " + str(len(data)))
+        print("data[0].keys(): " + str(data[0].keys()))
+
+
+    train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
+    train_data, val_data = train_test_split(train_data, test_size=0.2, random_state=42)
+
+    topic_2_train_DT, grouped_topics_DT, all_together_DT, vectorizers, _, _ = prepare_data(train_data)
+
+    model_pickle_path = "./data/model.pickle"
+    
+    if True:
+
+        ohe_cutoff = 150
+        tfidf_cutoff = 150
+
+        hyper_parameters = {
+
+            "max_iter" : 100,
+
+            "URLs" : ohe_cutoff,
+            "authors" : ohe_cutoff,
+            "leads" : ohe_cutoff,
+            "keywords" : tfidf_cutoff,
+            "gpt_keywords" : tfidf_cutoff,
+            "topics" : tfidf_cutoff,
+            "alpha" : 0.05,
+            "method" : "Lasso", #Ridge in Basic ne delata # "Basic", "Ridge" or "Lasso"
+            # or LassoCV, RidgeCV, ElasticNetCV
+        }
+    
+        curr_model = Model(topic_2_train_DT, grouped_topics_DT, all_together_DT, vectorizers, hyper_parameters=hyper_parameters)
+        
+        try:
+            with open(model_pickle_path, "wb") as f:
+                pickle.dump(curr_model, f)
+        except:
+            print("Couldn't save the model." + 2*"!\n")
+            pass    
+
+    else:
+
+        with open(model_pickle_path, "rb") as f:
+            curr_model = pickle.load(f)
+
+
+
+
+    test_model(curr_model, test_data, all_topics_together=True)
+    test_model(curr_model, test_data, all_topics_together=False)
+
 
 
 
