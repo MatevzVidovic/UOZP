@@ -10,7 +10,7 @@ import string
 import sklearn.preprocessing
 import sklearn.feature_extraction
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 from scipy.sparse import hstack
 
 
@@ -28,8 +28,10 @@ class RTVSlo:
     def __init__(self):
         self.normalizer = None
         self.model = None
+        self.vectorizer = None
+        self.top250 = None
 
-    def preprocess(self, data: list):
+    def preprocess(self, data: list, mode: str):
         # Convert to pandas dataframe
         df = pd.DataFrame(data)
 
@@ -37,9 +39,7 @@ class RTVSlo:
         df = pd.concat([df, pd.get_dummies(df["topics"], prefix="topic")], axis=1)
         # Get subtopics from url
         df["subtopics"] = df["url"].apply(lambda x: x.split("/")[4:-2])
-        # One-hot encode each subtopic
-        # df = pd.concat([df, pd.get_dummies(df["subtopics"].explode(), prefix="subtopic")], axis=1)
-
+        
         # Number of paragraphs
         df["n_paragraphs"] = df["paragraphs"].apply(lambda x: len(x))
         # Length of paragraphs
@@ -61,9 +61,7 @@ class RTVSlo:
 
 
         # Make bag of words
-        df["BoW"] = df["title"] + " " + df["authors"].apply(lambda x: " ".join(x)) + " " + df["lead"] + " " + df["paragraphs"].apply(lambda x: " ".join(x)) + " " + df["keywords"].apply(lambda x: " ".join(x)) + " " + df["subtopics"].apply(lambda x: " ".join(x))
-        # Add gpt_keywords to BoW
-        df["BoW"] = df["BoW"] + " " + df["gpt_keywords"].apply(lambda x: " ".join(x) if isinstance(x, list) else "" if np.isnan(x) else x)
+        df["BoW"] = df["title"] + " " + df["lead"] + " " + df["keywords"].apply(lambda x: " ".join(x)) + " " + df["subtopics"].apply(lambda x: " ".join(x)) + " " + df["gpt_keywords"].apply(lambda x: " ".join(x) if isinstance(x, list) else "" if np.isnan(x) else x)
         # Lowercase
         df["BoW"] = df["BoW"].apply(lambda x: x.lower())
         # Removes all punctuation
@@ -78,16 +76,42 @@ class RTVSlo:
         # Drop unnecessary columns
         df = df.drop(columns=["url", "category", "figures", "id", "date", "topics", "subtopics", "title", "authors", "lead", "paragraphs", "keywords", "gpt_keywords"])
         
+        if mode == "train":
+            
+            # Initialize vectorizer
+            vectorizer = sklearn.feature_extraction.text.TfidfVectorizer()
+            # Fit and transform
+            vectorizer.fit(df["BoW"])
+            tfidf_matrix = vectorizer.transform(df["BoW"])
+            self.vectorizer = vectorizer
 
-        # Initialize vectorizer
-        vectorizer = sklearn.feature_extraction.text.TfidfVectorizer()
-        # Fit and transform
-        tfidf_matrix = vectorizer.fit_transform(df["BoW"])
+            # Get only top Pearson correlation between n_comments and tfidf
+            pearson = np.array([np.corrcoef(tfidf_matrix[:, i].toarray().flatten(), df["n_comments"].to_numpy())[0, 1] for i in range(tfidf_matrix.shape[1])])
+            pearson = np.abs(pearson)
 
-        # Filter tf-idf based on the sum of each column 
-        # The sum of a column in the TF-IDF matrix captures the overall relevance of a word, accounting for both its local occurrence and its global importance
-        # avg_scores = np.mean(np.sum(tfidf_matrix, axis=0))
-        # tfidf_matrix = tfidf_matrix[:, np.where(np.sum(tfidf_matrix, axis=0) > avg_scores / 2)[0]]
+            
+            # import pickle
+            # with open("pearson_new.pkl", "wb") as f:
+            #     pickle.dump(pearson, f)
+            # with open("pearson_new.pkl", "rb") as f:
+            #     pearson = pickle.load(f)
+
+            # Get the indices of the top 100 words
+            top250 = np.argsort(pearson)[-250:]
+            self.top250 = top250
+            # Remove numbers
+            # top250 = [i for i in top250 if not any(c.isdigit() for c in vectorizer.get_feature_names_out()[i])]
+            # Get the words
+            # words = np.array(vectorizer.get_feature_names_out())[top250]
+            # Get tfidf_matrix with only top 250 words
+            tfidf_matrix = tfidf_matrix[:, top250]
+        
+        else:
+            # Transform
+            tfidf_matrix = self.vectorizer.transform(df["BoW"])
+            # Get tfidf_matrix with only top 250 words
+            tfidf_matrix = tfidf_matrix[:, self.top250]
+
         
         # Drop BoW column
         df = df.drop(columns=["BoW"])
@@ -96,10 +120,13 @@ class RTVSlo:
 
     def fit(self, train_data: list):
         # Preprocess data
-        df, tfidf_matrix = self.preprocess(train_data)
+        df, tfidf_matrix = self.preprocess(train_data, "train")
 
         # Target variable
         y = df["n_comments"].to_numpy(dtype=np.float64)
+
+        # Lower outliers
+        y = np.where(y > 90, 90, y)
 
         # Combine tf-idf matrix with other features
         X = hstack([tfidf_matrix, df.drop(columns=["n_comments"]).to_numpy(dtype=np.float64)])
@@ -110,17 +137,25 @@ class RTVSlo:
         self.normalizer = normalizer
 
         # Fit model
-        # self.model = LinearRegression()
-        self.model = Ridge(alpha=0.3)
-        # self.model = Lasso(alpha=0.5)
+        self.model = LinearRegression()
+        # self.model = Ridge(alpha=0.01)
+        # self.model = Lasso(alpha=0.01)
         self.model.fit(X, y)
-
+        
     def predict(self, test_data: list) -> np.array:
 
-        df, tfidf_matrix = self.preprocess(test_data)
+        df, tfidf_matrix = self.preprocess(test_data, "test")
 
         X = hstack([tfidf_matrix, df.drop(columns=["n_comments"]).to_numpy(dtype=np.float64)])
         X = self.normalizer.transform(X)
+
+        # Cross validation
+        scores_r2 = cross_val_score(self.model, X, df['n_comments'].to_numpy(dtype=np.float64), cv=10, scoring='r2')
+        scores_spearman = cross_val_score(self.model, X, df['n_comments'].to_numpy(dtype=np.float64), cv=10, scoring=(lambda estimator, X, y: np.corrcoef(estimator.predict(X), y)[0, 1]))
+        print("\nCross validation:")
+        print(f"R^2: {scores_r2.mean():.3f}")
+        print(f"Spearman's rank correlation coefficient: {scores_spearman.mean():.3f}")
+
         return self.model.predict(X)
     
 
@@ -132,6 +167,9 @@ def main():
 
     train_data = read_json(args.train_data_path)
     test_data = read_json(args.test_data_path)
+
+    # train_data = read_json('train_data.json.gz')
+    # test_data = read_json('test_data.json.gz')
 
     rtv = RTVSlo()
     rtv.fit(train_data)

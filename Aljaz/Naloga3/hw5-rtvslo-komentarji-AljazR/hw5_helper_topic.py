@@ -2,6 +2,7 @@ import json
 import gzip
 import numpy as np
 import pandas as pd
+import pickle
 import lemmagen3
 import matplotlib.pyplot as plt
 import string
@@ -26,10 +27,10 @@ def preprocess_data(path):
     df = pd.DataFrame(data)
 
     # One-hot encode topics
-    df = pd.concat([df, pd.get_dummies(df["topics"], prefix="topic")], axis=1)
+    # df = pd.concat([df, pd.get_dummies(df["topics"], prefix="topic")], axis=1)
     # Get subtopics from url
     df["subtopics"] = df["url"].apply(lambda x: x.split("/")[4:-2])
-    
+
     # Number of paragraphs
     df["n_paragraphs"] = df["paragraphs"].apply(lambda x: len(x))
     # Length of paragraphs
@@ -51,6 +52,7 @@ def preprocess_data(path):
 
 
     # Make bag of words
+    # df["BoW"] = (df["title"] + " ")  + df["authors"].apply(lambda x: " ".join(x)) + " " + df["lead"] + " " + df["keywords"].apply(lambda x: " ".join(x)) + " " + df["subtopics"].apply(lambda x: " ".join(x)) + " " + df["paragraphs"].apply(lambda x: " ".join(x)) + " " + df["gpt_keywords"].apply(lambda x: " ".join(x) if isinstance(x, list) else "" if np.isnan(x) else x)
     df["BoW"] = df["title"] + " " + df["lead"] + " " + df["keywords"].apply(lambda x: " ".join(x)) + " " + df["subtopics"].apply(lambda x: " ".join(x)) + " " + df["gpt_keywords"].apply(lambda x: " ".join(x) if isinstance(x, list) else "" if np.isnan(x) else x)
     # Lowercase
     df["BoW"] = df["BoW"].apply(lambda x: x.lower())
@@ -64,28 +66,26 @@ def preprocess_data(path):
 
 
     # Drop unnecessary columns
-    df = df.drop(columns=["url", "category", "figures", "id", "date", "topics", "subtopics", "title", "authors", "lead", "paragraphs", "keywords", "gpt_keywords"])
+    df = df.drop(columns=["url", "category", "figures", "id", "date", "subtopics", "title", "authors", "lead", "paragraphs", "keywords", "gpt_keywords"])
 
     return data, df
 
 # Make tf-idf matrix
-def tfidf(df):
+def tfidf(df, topic):
     # Initialize vectorizer
     vectorizer = sklearn.feature_extraction.text.TfidfVectorizer()
     # Fit and transform
     tfidf_matrix = vectorizer.fit_transform(df["BoW"])
-    
-    # Get only top   between n_comments and tfidf
-    pearson = np.array([np.corrcoef(tfidf_matrix[:, i].toarray().flatten(), df["n_comments"].to_numpy())[0, 1] for i in range(tfidf_matrix.shape[1])])
+   
+    # Get only top Pearson correlation between n_comments and tfidf
+    # pearson = np.array([np.corrcoef(tfidsf_matrix[:, i].toarray().flatten(), df["n_comments"].to_numpy())[0, 1] for i in range(tfidf_matrix.shape[1])])
 
     # Pickle pearson
-    # import pickle
-    # with open('pearson.pkl', 'wb') as f:
-        # pickle.dump(pearson, f)
-    # Unplickle pearson
-    # with open('pearson.pkl', 'rb') as f:
-    #     pearson = pickle.load(f)
-    # pearson = np.abs(pearson)
+    # with open(f'pearson_{topic}.pkl', 'wb') as f:
+    #     pickle.dump(pearson, f)
+    # Unpickle pearson
+    with open(f'pearson_{topic}.pkl', 'rb') as f:
+        pearson = pickle.load(f)
 
     '''
     top100 = np.argsort(np.abs(pearson))[-100:]
@@ -108,11 +108,10 @@ def tfidf(df):
     plt.show()
     '''
 
-    # '''
     # Get the indices of the top 100 words
-    top250 = np.argsort(pearson)[-250:]
+    top250 = np.argsort(np.abs(pearson))[-250:]
     # Remove numbers
-    # top250 = [i for i in top250 if not any(c.isdigit() for c in vectorizer.get_feature_names_out()[i])]
+    top250 = [i for i in top250 if not any(c.isdigit() for c in vectorizer.get_feature_names_out()[i])]
     # Get the words
     words = np.array(vectorizer.get_feature_names_out())[top250]
     # Get tfidf_matrix with only top 250 words
@@ -130,7 +129,7 @@ def tfidf(df):
     # Drop BoW column
     df = df.drop(columns=["BoW"])
 
-    return tfidf_matrix, df, vectorizer, words
+    return tfidf_matrix, df, words
 
 # Prepare data for training
 def prepare_data(df, tfidf_matrix):
@@ -163,7 +162,7 @@ def prepare_data(df, tfidf_matrix):
     X = hstack([df.drop(columns=["n_comments"]).to_numpy(dtype=np.float64), tfidf_matrix])
 
     # Split data
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.3, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.3)
 
     # Normalize training data
     normalizer = sklearn.preprocessing.Normalizer().fit(X_train)
@@ -172,19 +171,19 @@ def prepare_data(df, tfidf_matrix):
     return X_train, X_test, y_train, y_test, normalizer
 
 # Get most important features
-def most_important_features(model, df, words, vectorizer):
+def most_important_features(model, df, words):
      # Get most important features
     feature_importance = model.coef_
     indices = np.argsort(np.abs(feature_importance))[::-1]
-    feature_names = np.array(df.drop(columns=["n_comments"]).columns.to_list() + list(words)) # list(vectorizer.get_feature_names_out()))
+    feature_names = np.array(df.drop(columns=["n_comments"]).columns.to_list() + list(words))
     # Get most important features
     most_important_features = feature_names[indices]
     # Get most important feature values
     most_important_values = feature_importance[indices]
     # Print most important features
     print("\nMost important features:")
-    for i in range(15):
-        print(f"{most_important_features[i]}: {most_important_values[i]}")
+    for i in range(5):
+        print(f"{most_important_features[i]}: {most_important_values[i]:.2f}")
 
 # Find best alpha
 def best_alpha(X_train, X_test, y_train, y_test, model, min_alpha, max_alpha, step):
@@ -219,70 +218,64 @@ if __name__ == "__main__":
     # Preprocess data
     data, df = preprocess_data("rtvslo_train.json.gzip")
 
-    # Make tf-idf matrix
-    tfidf_matrix, df, vectorizer, words = tfidf(df)
+    # Split df by categories
+    df_topics = {}
+    for topics in df["topics"].unique():
+        df_topics[topics] = df[df["topics"] == topics]
 
-    # Prepare data
-    X_train, X_test, y_train, y_test, normalizer = prepare_data(df, tfidf_matrix)
-
-    # Fit model
-    # model = LinearRegression()
-    model = Ridge(alpha=0.01)
-    # model = Lasso(alpha=0.01)
-    model.fit(X_train, y_train)
-
-    # Predict
-    X_test = normalizer.transform(X_test)
-    predictions = model.predict(X_test)
-
-    # Evaluate
-    print(f"R^2: {model.score(X_test, y_test):.3f}")
-    print(f"Spearman's rank correlation coefficient: {np.corrcoef(predictions, y_test)[0, 1]:.3f}")
-
-    # Accuaracy for each topic seperately
-    '''
-    topics = [col for col in df.columns if 'topic_' in col]
     # Merge topics with less than 500 articles
-    topics_other = [topic for topic in topics if df[topic].sum() < 1000]
-    df["topic_other"] = df[topics_other].sum(axis=1)
-    topics = [topic for topic in topics if topic not in topics_other] + ["topic_other"]
+    merged_topics = []
+    df_topics["other"] = pd.DataFrame()
+    for topic in df_topics.keys():
+        if len(df_topics[topic]) < 1000:
+            df_topics["other"] = pd.concat([df_topics["other"], df_topics[topic]])
+            merged_topics.append(topic)
+        df_topics[topic] = df_topics[topic].drop(columns=["topics"])
 
-    indices_X = {}
-    indices_y = {}
-    r2 = {}
-    spearman = {}
-    for topic in topics:
-        # get indeces of topic in X_test
-        indices_X[topic] = [i for i in range(X_test.shape[0]) if df.iloc[i][topic] == 1]
-        indices_y[topic] = [i for i in range(y_test.shape[0]) if df.iloc[i][topic] == 1]
-        # get X and y
-        X = X_test[indices_X[topic]]
-        y = y_test[indices_y[topic]]
-        # get predictions from already fitted model
-        predictions_topic = predictions[indices_y[topic]]
+    for topic in merged_topics:
+        del df_topics[topic]
+
+    print(f"Merged topics: {merged_topics}")
+
+    # Make tf-idf matrix
+    tfidf_matrix_topics = {}
+    words_topics = {}
+    # tfidf_matrix, df, vectorizer, words = tfidf(df)
+    for topic in df_topics.keys():
+        tfidf_matrix_topics[topic], df_topics[topic], words_topics[topic] = tfidf(df_topics[topic], topic)
+
+    # Train model for each topic
+    r2_topics = {}
+    spearman_topics = {}
+    for topic in df_topics.keys():
+        # Prepare data
+        X_train, X_test, y_train, y_test, normalizer = prepare_data(df_topics[topic], tfidf_matrix_topics[topic])
+
+        # Fit model
+        model = LinearRegression()
+        # model = Ridge(alpha=0.01)
+        # model = Lasso(alpha=0.01)
+        model.fit(X_train, y_train)
+
+        # Predict
+        X_test = normalizer.transform(X_test)
+        predictions = model.predict(X_test)
+
         # Evaluate
-        r2[topic] = model.score(X, y)
-        spearman[topic] = np.corrcoef(predictions_topic, y)[0, 1]
-        print(f"\nTOPIC: {topic.split('_')[1]}")
-        print(f"R^2: {r2[topic]:.3f}")
-        print(f"Spearman: {spearman[topic]:.3f}")
+        print(f"\nTOPIC: {topic}")
+        r2_topics[topic] = model.score(X_test, y_test)
+        spearman_topics[topic] = np.corrcoef(predictions, y_test)[0, 1]
+        print(f"R^2: {r2_topics[topic]:.3f}")
+        print(f"Spearman's rank correlation coefficient: {spearman_topics[topic]:.3f}")
 
-    # Get weighted average r2 and spearman
-    r2_sum = 0
-    spearman_sum = 0
-    for topic in topics:
-        r2_sum += r2[topic] * len(indices_X[topic])
-        spearman_sum += spearman[topic] * len(indices_X[topic])
-    print(f"\n\nWeighted average R^2: {r2_sum / len(y_test):.3f}")
-    print(f"Weighted average Spearman: {spearman_sum / len(y_test):.3f}")
-    # '''
-    
-    # Cross validation for r2 and spearman
-    scores_r2 = cross_val_score(model, X_test, y_test, cv=10)
-    scores_spearman = cross_val_score(model, X_test, y_test, cv=10, scoring=(lambda estimator, X, y: np.corrcoef(estimator.predict(X), y)[0, 1]))
-    print("\nCross validation:")
-    print(f"R^2: {scores_r2.mean():.3f}")
-    print(f"Spearman's rank correlation coefficient: {scores_spearman.mean():.3f}")
-    
-    # Most important features
-    most_important_features(model, df, words, vectorizer)
+
+        # Most important features
+        # most_important_features(model, df_topics[topic], words_topics[topic])
+
+    # Weighted average of r2 and spearman (based on number of articles in each topics)
+    r2_topics = {k: v * len(df_topics[k]) for k, v in r2_topics.items()}
+    spearman_topics = {k: v * len(df_topics[k]) for k, v in spearman_topics.items()}
+    r2 = np.sum(list(r2_topics.values())) / len(df)
+    spearman = np.sum(list(spearman_topics.values())) / len(df)
+    print(f"\n\nWeighted average R^2: {r2:.3f}")
+    print(f"Weighted average Spearman's rank correlation coefficient: {spearman:.3f}")

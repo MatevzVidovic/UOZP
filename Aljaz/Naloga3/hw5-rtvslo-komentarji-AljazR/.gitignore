@@ -159,8 +159,8 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-rtvslo_train.json.gzip
-rtvslo_train_old.json.gzip
-rtvslo_train.json
+*.json.gzip
+*.json.gz
+*.json
 predictions.txt
 *.pkl
