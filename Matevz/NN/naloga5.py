@@ -95,43 +95,47 @@ PRINTOUT = False
 MAIN_PRINTOUT = True
 PLOTS = False
 
-PARAMS = {
-    "col_norm" : "standardize" #, "dont", # "dont" or "L2"
-}
 
 YEALD_MAT_PARAMS = {
+    "normalizer" : "standardize", # "dont" or "L2". 
+    # Or it is the actual Normalizer object - for the test data.
 
-    "cap_comment_n" : "perc_and_root", # za 500 je izboljšanje
-    # can be None for no cap, integer for absolute cap, or "perc_and_root" for
-    # perc percentile value + (number - perc percentile value)^(1/root).
-    "perc" : 98,
-    "root" : 10,
+    "comment_func" : "root", # za 500 je izboljšanje
+    # can be:
+    # None for no cap - great for running on test data
+    # integer for absolute cap, 
+    # "perc_and_root" for perc percentile value + (number - perc percentile value)^(1/root).
+    # "root" for number^(1/root)
+    # "log" for np.log(number+1)
+    
+    # "perc" : 98,
+    "root" : 2,
     
     # This is not at all supported yet. Keep it False.
     # The big problem is that how to pass parameters into testing calls of yeald_mat...
     # and not have it do the capping.
-    "pca" : False,
-    "pca_n": 100, # num of pca components
+    # "pca" : False,
+    # "pca_n": 100, # num of pca components
 }
 
 
-ohe_cutoff = 150
-tfidf_cutoff = 150
+# ohe_cutoff = 150
+# tfidf_cutoff = 150
 
-HYPER_PARAMETERS = {
+# HYPER_PARAMETERS = {
 
-    "max_iter" : 10,
+#     "max_iter" : 10,
 
-    "URLs" : ohe_cutoff,
-    "authors" : ohe_cutoff,
-    "leads" : ohe_cutoff,
-    "keywords" : tfidf_cutoff,
-    "gpt_keywords" : tfidf_cutoff,
-    "topics" : tfidf_cutoff,
-    "alpha" : 0.0005,
-    "method" : "Lasso", #Ridge in Basic ne delata # "Basic", "Ridge" or "Lasso"
-    # or LassoCV, RidgeCV, ElasticNetCV
-}
+#     "URLs" : ohe_cutoff,
+#     "authors" : ohe_cutoff,
+#     "leads" : ohe_cutoff,
+#     "keywords" : tfidf_cutoff,
+#     "gpt_keywords" : tfidf_cutoff,
+#     "topics" : tfidf_cutoff,
+#     "alpha" : 0.0005,
+#     "method" : "Lasso", #Ridge in Basic ne delata # "Basic", "Ridge" or "Lasso"
+#     # or LassoCV, RidgeCV, ElasticNetCV
+# }
 
 
 def mutual_info_best_ixs(X, y, n_best):
@@ -185,7 +189,7 @@ def word_importances(matrix, y):
     return sorted_ixs, sorted_returner
 
 
-def build_matrix_from_data_topic(data_topic, model_type="single_topic", hyper_parameters=None):
+def build_matrix_from_data_topic_and_change_DT_accordingly(data_topic, model_type="single_topic", hyper_parameters=None):
     # Be aware that this changes the data topic!
     # for URLs, authors, topics_encoded it trims them to the best 150 features. 
     # type can be "single_topic", "grouped_topic", "unrecognised_topic", "all_topics_together"
@@ -197,112 +201,109 @@ def build_matrix_from_data_topic(data_topic, model_type="single_topic", hyper_pa
         assert type(data_topic) == DataTopic
 
 
-
-    URLs_best_ixs, URLs_sorted_pearson_corrs = word_importances(data_topic.URLs, data_topic.num_of_comments)
-    if hyper_parameters is None:
-        URLs_chosen_ixs = URLs_best_ixs[-150:]
-    else:
-        URLs_chosen_ixs = URLs_best_ixs[-hyper_parameters["URLs"]:]
-    if PRINTOUT:
-        print("URLs_best_ixs: ")
-        print(URLs_best_ixs)
-        print("data_topic.URL_names: ")
-        print(data_topic.URL_names)
-
-    authors_best_ixs, authors_sorted_pearson_corrs = word_importances(data_topic.authors, data_topic.num_of_comments)
-    if hyper_parameters is None:
-        authors_chosen_ixs = authors_best_ixs[-150:]
-    else:
-        authors_chosen_ixs = authors_best_ixs[-hyper_parameters["authors"]:]
-
-
-
-    # samo razlika, da single in unrecognised ne delata z topics in jih zato ne režemo
-    # Zato imata primera pač drugačen trimming
-
-    if model_type == "grouped_topic" or model_type == "all_topics_together":
-
-        topics_best_ixs, topics_sorted_pears_corrs = word_importances(data_topic.topics_encoded, data_topic.num_of_comments)
+    if False:
+        URLs_best_ixs, URLs_sorted_pearson_corrs = word_importances(data_topic.URLs, data_topic.num_of_comments)
         if hyper_parameters is None:
-            topics_chosen_ixs = topics_best_ixs[-150:]
+            URLs_chosen_ixs = URLs_best_ixs[-150:]
         else:
-            topics_chosen_ixs = topics_best_ixs[-hyper_parameters["topics"]:]
-
+            URLs_chosen_ixs = URLs_best_ixs[-hyper_parameters["URLs"]:]
+        
         if PRINTOUT:
-            plot_me(topics_sorted_pears_corrs, label="topics")
-    
-    elif model_type == "single_topic" or model_type == "unrecognised_topic":
+            print("URLs_best_ixs: ")
+            print(URLs_best_ixs)
+            print("data_topic.URL_names: ")
+            print(data_topic.URL_names)
 
-        topics_chosen_ixs = None
-
-
-    data_topic.one_hot_encoded_chosen_ixs_trim(URLs_chosen_ixs, authors_chosen_ixs, topics_chosen_ixs)
-
-
-
-
+        authors_best_ixs, authors_sorted_pearson_corrs = word_importances(data_topic.authors, data_topic.num_of_comments)
+        if hyper_parameters is None:
+            authors_chosen_ixs = authors_best_ixs[-150:]
+        else:
+            authors_chosen_ixs = authors_best_ixs[-hyper_parameters["authors"]:]
 
 
 
+        # samo razlika, da single in unrecognised ne delata z topics in jih zato ne režemo
+        # Zato imata primera pač drugačen trimming
+
+        if model_type == "grouped_topic" or model_type == "all_topics_together":
+
+            topics_best_ixs, topics_sorted_pears_corrs = word_importances(data_topic.topics_encoded, data_topic.num_of_comments)
+            if hyper_parameters is None:
+                topics_chosen_ixs = topics_best_ixs[-150:]
+            else:
+                topics_chosen_ixs = topics_best_ixs[-hyper_parameters["topics"]:]
+
+            if PRINTOUT:
+                plot_me(topics_sorted_pears_corrs, label="topics")
+        
+        elif model_type == "single_topic" or model_type == "unrecognised_topic":
+
+            topics_chosen_ixs = None
 
 
-
-
-
-
-
-
-
-    # print("leads 1")
-    leads_best_ixs, leads_sorted_pearson_corrs = word_importances(data_topic.leads_tfidf, data_topic.num_of_comments)
-    # print("leads 2")
-    keywords_best_ixs, keywords_sorted_pearson_corrs = word_importances(data_topic.keywords_tfidf, data_topic.num_of_comments)
-    gpt_keywords_best_ixs, gpt_keywords_sorted_pearson_corrs = word_importances(data_topic.gpt_keywords_tfidf, data_topic.num_of_comments)
-    
-
-    if hyper_parameters is None:
-        leads_chosen_ixs = leads_best_ixs[-150:]
-        keywords_chosen_ixs = keywords_best_ixs[-150:]
-        gpt_keywords_chosen_ixs = gpt_keywords_best_ixs[-150:]
-
-    else:
-        leads_chosen_ixs = leads_best_ixs[-hyper_parameters["leads"]:]
-        keywords_chosen_ixs = keywords_best_ixs[-hyper_parameters["keywords"]:]
-        gpt_keywords_chosen_ixs = gpt_keywords_best_ixs[-hyper_parameters["gpt_keywords"]:]
-
-
-    data_topic.tfidf_chosen_ixs_trim(leads_chosen_ixs, keywords_chosen_ixs, gpt_keywords_chosen_ixs)
-
-    chosen_ixs_dict = {
-        "leads_chosen_ixs" : leads_chosen_ixs,
-        "keywords_chosen_ixs" : keywords_chosen_ixs,
-        "gpt_keywords_chosen_ixs" : gpt_keywords_chosen_ixs}
+        data_topic.one_hot_encoded_chosen_ixs_trim(URLs_chosen_ixs, authors_chosen_ixs, topics_chosen_ixs)
 
 
 
 
-    if PRINTOUT:
-        plot_me(URLs_sorted_pearson_corrs, label="URLs")
-        plot_me(authors_sorted_pearson_corrs, label="authors")
-        plot_me(leads_sorted_pearson_corrs, label="leads")
-        plot_me(keywords_sorted_pearson_corrs, label="keywords")
-        plot_me(gpt_keywords_sorted_pearson_corrs, label="gpt_keywords")
-        plt.legend(loc="upper center")
-        plt.title(str(data_topic.topic) + ", " + str(model_type))
-        plt.show(block=False)
 
-        plt.figure()
 
+
+
+
+
+
+
+
+
+
+
+        # print("leads 1")
+        leads_best_ixs, leads_sorted_pearson_corrs = word_importances(data_topic.leads_tfidf, data_topic.num_of_comments)
+        # print("leads 2")
+        keywords_best_ixs, keywords_sorted_pearson_corrs = word_importances(data_topic.keywords_tfidf, data_topic.num_of_comments)
+        gpt_keywords_best_ixs, gpt_keywords_sorted_pearson_corrs = word_importances(data_topic.gpt_keywords_tfidf, data_topic.num_of_comments)
         
 
+        if hyper_parameters is None:
+            leads_chosen_ixs = leads_best_ixs[-150:]
+            keywords_chosen_ixs = keywords_best_ixs[-150:]
+            gpt_keywords_chosen_ixs = gpt_keywords_best_ixs[-150:]
 
-    if PARAMS["col_norm"] == "dont":
-        data_matrix, y = data_topic.yeald_complete_matrix(model_type=model_type, params=YEALD_MAT_PARAMS, normalizer=None)
-        normalizer = None
+        else:
+            leads_chosen_ixs = leads_best_ixs[-hyper_parameters["leads"]:]
+            keywords_chosen_ixs = keywords_best_ixs[-hyper_parameters["keywords"]:]
+            gpt_keywords_chosen_ixs = gpt_keywords_best_ixs[-hyper_parameters["gpt_keywords"]:]
+
+
+        data_topic.tfidf_chosen_ixs_trim(leads_chosen_ixs, keywords_chosen_ixs, gpt_keywords_chosen_ixs)
+
+        chosen_ixs_dict = {
+            "leads_chosen_ixs" : leads_chosen_ixs,
+            "keywords_chosen_ixs" : keywords_chosen_ixs,
+            "gpt_keywords_chosen_ixs" : gpt_keywords_chosen_ixs}
+
+
+
+
+        if PRINTOUT:
+            plot_me(URLs_sorted_pearson_corrs, label="URLs")
+            plot_me(authors_sorted_pearson_corrs, label="authors")
+            plot_me(leads_sorted_pearson_corrs, label="leads")
+            plot_me(keywords_sorted_pearson_corrs, label="keywords")
+            plot_me(gpt_keywords_sorted_pearson_corrs, label="gpt_keywords")
+            plt.legend(loc="upper center")
+            plt.title(str(data_topic.topic) + ", " + str(model_type))
+            plt.show(block=False)
+
+            plt.figure()
     else:
-        data_matrix, y, normalizer = data_topic.yeald_complete_matrix(model_type=model_type, params=YEALD_MAT_PARAMS, normalizer=PARAMS["col_norm"])
+        chosen_ixs_dict = None
+            
 
 
+
+    data_matrix, y, _, normalizer = data_topic.yeald_complete_matrix(model_type=model_type, params=YEALD_MAT_PARAMS)
 
 
 
@@ -362,13 +363,20 @@ from model import RunModel
 
 class WrapperModel:
 
-    def __init__(self, all_together_DT, vectorizers, hyper_parameters=None):
+    def __init__(self, json_list, hyper_parameters=None):
+
+
+        _, _, all_together_DT, vectorizers, _, _= prepare_data(json_list)
         
-        self.all_together_DT = all_together_DT
+        _, _, self.all_together_model_chosen_ixs, self.all_together_normalizer = build_matrix_from_data_topic_and_change_DT_accordingly(all_together_DT, model_type="all_topics_together", hyper_parameters=hyper_parameters)
+
+        self.all_together_DT = all_together_DT.get_DT_keeping_only_names()
         self.vectorizers = vectorizers
 
-        self.all_together_matrix, self.all_together_y, self.all_together_model_chosen_ixs, self.all_together_normalizer = build_matrix_from_data_topic(all_together_DT, model_type="all_topics_together", hyper_parameters=hyper_parameters)
+        self.yeald_mat_params = YEALD_MAT_PARAMS.copy()
+        self.yeald_mat_params["normalizer"] = self.all_together_normalizer
 
+        # self.all_together_matrix, self.all_together_y, 
 
         # # Get cpu, gpu or mps device for training.
         # self.device = (
@@ -381,8 +389,8 @@ class WrapperModel:
         # print(f"Using {self.device} device")
 
 
-    def give_data(self):
-        return self.all_together_matrix, self.all_together_y
+    # def give_data(self):
+    #     return self.all_together_matrix, self.all_together_y
 
 
     # def load_model(self, model_path):
@@ -406,24 +414,44 @@ class WrapperModel:
     #     model.load_state_dict("data/latest.pth")
 
     #     self.model = model
+    
+    def get_X_y_from_list_of_jsons(self, cases_list):
+        _, _, all_data_topic, _, _, _ = prepare_data(cases_list, all_vectorizers=self.vectorizers, is_test_data=True)
 
-    def train_me(self):
 
-        model = RunModel(self.all_together_matrix, self.all_together_y)
+        all_data_topic.tfidf_chosen_ixs_trim(self.all_together_model_chosen_ixs)
+        # print("all_data_topic")
+        # print(all_data_topic.topics_encoded)
+        all_data_topic.one_hot_encoding(self.all_together_DT)
+        # print("all_data_topic")
+        # print(all_data_topic.topics_encoded)
+        X_test, y_test, _, _ = all_data_topic.yeald_complete_matrix(model_type="all_topics_together", params=self.yeald_mat_params, give_names=True)
+        return X_test, y_test
+
+    def train_me(self, train_cases_list):
+
+        X_train, y_train = self.get_X_y_from_list_of_jsons(train_cases_list)
+        model = RunModel(X_train, y_train)
         model.load_train_test_and_save()
 
 
 
     def predict(self, test_cases_list):
 
-        _, _, all_data_topic, _, _, _ = prepare_data(test_cases_list, all_vectorizers=self.vectorizers, is_test_data=True)
+        original_comm_func = self.yeald_mat_params["comment_func"]
 
-        all_data_topic.tfidf_chosen_ixs_trim(**self.all_together_model_chosen_ixs)
-        all_data_topic.one_hot_encoding(self.all_together_DT)
-        X_test, y_test, _ = all_data_topic.yeald_complete_matrix(model_type="all_topics_together", give_names=True, normalizer=self.all_together_normalizer)
+        self.yeald_mat_params["comment_func"] = None
+        X_test, y_test = self.get_X_y_from_list_of_jsons(test_cases_list)
         
         model = RunModel(X_test, y_test)
         y_pred = model.predict()
+
+        if original_comm_func == "root":
+            y_pred = y_pred ** self.yeald_mat_params["root"]
+        elif original_comm_func == "log":
+            y_pred = np.exp(y_pred) - 1
+            y_pred[y_pred < 0] = 0
+            
         
         return X_test, y_test, y_pred
 

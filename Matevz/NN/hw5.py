@@ -9,22 +9,22 @@ from naloga5 import WrapperModel
 
 import pickle
 import time
-TRAIN_ON_THE_SPOT = False
-TRAIN_TIME_IN_SECS = int(1 * 60 * 60)
+TRAIN_ON_THE_SPOT = True
+# TRAIN_TIME_IN_SECS = int(0.5 * 60 * 60)
 
-ohe_cutoff = 150
-tfidf_cutoff = 150
+# ohe_cutoff = 150
+# tfidf_cutoff = 150
 
 hyper_parameters = {
 
-    "max_iter" : 400,
+    # "max_iter" : 400,
 
-    "URLs" : ohe_cutoff,
-    "authors" : ohe_cutoff,
-    "leads" : ohe_cutoff,
-    "keywords" : tfidf_cutoff,
-    "gpt_keywords" : tfidf_cutoff,
-    "topics" : tfidf_cutoff, 
+    # "URLs" : ohe_cutoff,
+    # "authors" : ohe_cutoff,
+    # "leads" : ohe_cutoff,
+    # "keywords" : tfidf_cutoff,
+    # "gpt_keywords" : tfidf_cutoff,
+    # "topics" : tfidf_cutoff, 
 }
 
 
@@ -43,19 +43,19 @@ class RTVSlo:
 
         # wrapper_model_creator.py
 
-        ohe_cutoff = 150
-        tfidf_cutoff = 150
+        # ohe_cutoff = 150
+        # tfidf_cutoff = 150
 
         hyper_parameters = {
 
-            "max_iter" : 400,
+            # "max_iter" : 400,
 
-            "URLs" : ohe_cutoff,
-            "authors" : ohe_cutoff,
-            "leads" : ohe_cutoff,
-            "keywords" : tfidf_cutoff,
-            "gpt_keywords" : tfidf_cutoff,
-            "topics" : tfidf_cutoff, 
+            # "URLs" : ohe_cutoff,
+            # "authors" : ohe_cutoff,
+            # "leads" : ohe_cutoff,
+            # "keywords" : tfidf_cutoff,
+            # "gpt_keywords" : tfidf_cutoff,
+            # "topics" : tfidf_cutoff, 
         }
 
 
@@ -68,9 +68,7 @@ class RTVSlo:
         #     # Read and parse the JSON data
         #     data = json.load(f)
 
-
-        _, _, all_together_DT, vectorizers, _, _= prepare_data(train_data)
-        curr_model = WrapperModel(all_together_DT, vectorizers, hyper_parameters)
+        curr_model = WrapperModel(train_data, hyper_parameters)
 
         with open('wrapper_model.pkl', 'wb') as f:
             pickle.dump(curr_model, f)
@@ -80,21 +78,20 @@ class RTVSlo:
 
 
 
-        start_time = time.time()
+        # start_time = time.time()
 
-        # trainer.py
+        # # trainer.py
 
-        import pickle
-        with open('wrapper_model.pkl', 'rb') as f:
-            curr_model = pickle.load(f)
+        # with open('wrapper_model.pkl', 'rb') as f:
+        #     curr_model = pickle.load(f)
 
-        while True:
+        for _ in range(2):
             
-            curr_time = time.time()
-            if curr_time - start_time > TRAIN_TIME_IN_SECS:
-                break
+            # curr_time = time.time()
+            # if curr_time - start_time > TRAIN_TIME_IN_SECS:
+            #     break
 
-            curr_model.train_me()
+            curr_model.train_me(train_data)
 
 
         
@@ -109,21 +106,27 @@ class RTVSlo:
     
 
 def main():
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('train_data_path', type=str)
-    # parser.add_argument('test_data_path', type=str)
-    # args = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('train_data_path', type=str, nargs='?', default='./data/rtvslo_train.json.gz',
+                        help='Path to the training data file')
+    parser.add_argument('test_data_path', type=str, nargs='?', default='./data/rtvslo_test.json.gz',
+                        help='Path to the test data file')
+    args = parser.parse_args()
 
-    # train_data = read_json(args.train_data_path)
-    # test_data = read_json(args.test_data_path)
 
-    train_data = read_json("./data/rtvslo_train.json.gz")
-    test_data = read_json("./data/rtvslo_test.json.gz")
+    train_data = read_json(args.train_data_path)
+
+    # train_data = read_json("./data/rtvslo_train.json.gz")
+    # test_data = read_json("./data/rtvslo_test.json.gz")
 
     rtv = RTVSlo()
 
     if TRAIN_ON_THE_SPOT:
         rtv.fit(train_data)
+
+
+
+    test_data = read_json(args.test_data_path)
 
     predictions = rtv.predict(test_data)
 

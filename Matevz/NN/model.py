@@ -143,12 +143,13 @@ class NeuralNetwork(nn.Module):
                 nn.ReLU(),
                 nn.Dropout(p=dropout),
                 
-                nn.Linear(second_layer_size, middle_layer_size),
-                nn.ReLU(),
-                nn.Dropout(p=dropout),
+                # nn.Linear(second_layer_size, middle_layer_size),
+                # nn.ReLU(),
+                # nn.Dropout(p=dropout),
                 
-                
-                nn.Linear(middle_layer_size, 1)
+                # nn.Linear(middle_layer_size, 1)
+
+                nn.Linear(second_layer_size, 1)
 
           )
             
@@ -203,21 +204,31 @@ class RunModel:
     
         def __init__(self, data_matrix, given_y) -> None:
             
+            print("data_matrix.shape")
+            print(data_matrix.shape)
 
 
             model_parameters = model_params
             model_parameters["model_type"] = types_dict[3]
             model_parameters["chosen_num_of_features"] = data_matrix.shape[1]
-            model_parameters["second_layer_size"] = 200
-            model_parameters["middle_layer_size"] = 50
+            model_parameters["second_layer_size"] = 5
+            # model_parameters["middle_layer_size"] = 3
 
             model_parameters["dropout"] = 0.0 # nočem ga ker weird reasoning, da je sploh zraven
                                             # 0.1 # pomaga proti overfittingu
-            model_parameters["learning_rate"] = 1e-2
+            model_parameters["learning_rate"] = 1e-4 # 1e-3
             
             # na novo dodane
-            model_parameters["weight_decay"] = 0.01 # 0.1 je considered high.
-            model_parameters["gradient_clipping_norm"] = 1.0
+            model_parameters["weight_decay"] = 1e-5
+            
+            # Za vse tfidfje:
+             #1.7 najboljse 0.418 nekje je R2 pa nic ne overfitta, ker ko gre druga runda epochov sploh niso high zadeve
+            #1.8 ne deluje vec #1.5 boljse # 0.9 boljse # pri 0.7 ne overfitta, R2 nekje 0.41, oziroma zelo pocasi pada test R2
+            # pri 0.5 R2 pride do 0.43, ampak zacne overfittat
+            #0.05 #0.01 # 0.1 je considered high. # glavno za overiftting
+            model_parameters["gradient_clipping_norm"] = None #1.0 # 1.0 # to ima problem, da normalizira celoten gradient
+            # Ce en gradient dominira, ker je eksplodiral, to unici ucinek vseh ostalih.
+            model_parameters["gradient_clip_value"] = 1.0 # 20.0 # to deluje za vsak value in je boljse
 
             self.model_data_path = main_folder + str(model_parameters["model_type"]) + "_" + str(model_parameters["chosen_num_of_features"]) + "_" + str(model_parameters["second_layer_size"]) + "_" + str(model_parameters["middle_layer_size"]) + "_model/"
 
@@ -225,13 +236,22 @@ class RunModel:
             print(model_parameters)
 
 
+            # nn.MSELoss()
+            # self.loss_fn = nn.CrossEntropyLoss() # good for classification., doesn't work with regression
+            self.loss_fn = nn.MSELoss() # good for regression
+            # self.loss_fn = nn.L1Loss() # good for regression
+
+
+
             chosen_num_of_features = model_parameters["chosen_num_of_features"]
             learning_rate = model_parameters["learning_rate"]
             weight_decay = model_parameters["weight_decay"]
             gradient_clipping_norm = model_parameters["gradient_clipping_norm"]
+            gradient_clip_value = model_parameters["gradient_clip_value"]
 
             self.chosen_num_of_features = chosen_num_of_features
             self.gradient_clipping_norm = gradient_clipping_norm
+            self.gradient_clip_value = gradient_clip_value
 
 
 
@@ -281,9 +301,6 @@ class RunModel:
                 
 
 
-            # nn.MSELoss()
-            # self.loss_fn = nn.CrossEntropyLoss() # good for classification., doesn't work with regression
-            self.loss_fn = nn.MSELoss() # good for regression
 
 
             # https://pytorch.org/docs/stable/optim.html
@@ -352,6 +369,7 @@ class RunModel:
             loss_fn = self.loss_fn
             optimizer = self.optimizer
             gradient_clipping_norm = self.gradient_clipping_norm
+            gradient_clip_value = self.gradient_clip_value
 
             size = len(dataloader.dataset)
             model.train()
@@ -370,7 +388,13 @@ class RunModel:
 
                 # Backpropagation
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=gradient_clipping_norm)  # Gradient clipping
+                
+                # Gradient clipping
+                if gradient_clipping_norm is not None:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=gradient_clipping_norm)
+                if gradient_clip_value is not None:
+                    torch.nn.utils.clip_grad_value_(model.parameters(), clip_value=gradient_clip_value)
+                
                 optimizer.step()
                 optimizer.zero_grad()
 
@@ -419,12 +443,46 @@ class RunModel:
             all_y_pred = np.array(all_y_pred)
             
             test_loss /= num_batches
-            R2 = 1 - (pred - y).var() / y.var()
-            
-            print(f"Test Error: \n R2: {(R2):>0.3f}%, Avg loss: {test_loss:>8f} \n")
+            R2 = 1 - (all_y_pred - all_y).var() / all_y.var()
+            MAE = np.abs(all_y_pred - all_y).mean()
 
-            
-            return R2, test_loss
+            temp_y = all_y.copy()**2
+            R2_if_using_root = 1 - (all_y_pred**2 - temp_y).var() / temp_y.var()
+            MAE_if_using_root = np.abs(all_y_pred**2 - temp_y).mean()
+
+            temp_y = np.exp(all_y.copy()) - 1
+            R2_if_using_log = 1 - ((np.exp(all_y_pred) - 1) - temp_y).var() / temp_y.var()
+            MAE_if_using_log = np.abs((np.exp(all_y_pred) - 1) - temp_y).mean()
+
+            print(f"Test Error: \n R2: {(R2):>0.3f}%, Avg loss: {test_loss:>8f} \n")
+            print(f"R2_if_using_root: {(R2_if_using_root):>0.3f}%, R2_if_using_log: {R2_if_using_log:>0.3f} \n")
+            print(f"MAE: {MAE:>0.3f}, MAE_if_using_root: {MAE_if_using_root:>0.3f}, MAE_if_using_log: {MAE_if_using_log:>0.3f} \n")
+
+
+
+            temp_y = all_y.copy()**3
+            R2_if_using_3_root = 1 - (all_y_pred**3 - temp_y).var() / temp_y.var()
+            MAE_if_using_3_root = np.abs(all_y_pred**3 - temp_y).mean()
+            print(f"R2_if_using_3_root: {(R2_if_using_3_root):>0.3f}%, MAE_if_using_3_root: {MAE_if_using_3_root:>0.3f} \n")
+
+            temp_y = all_y.copy()**4
+            R2_if_using_4_root = 1 - (all_y_pred**4 - temp_y).var() / temp_y.var()
+            MAE_if_using_4_root = np.abs(all_y_pred**4 - temp_y).mean()
+            print(f"R2_if_using_4_root: {(R2_if_using_4_root):>0.3f}%, MAE_if_using_4_root: {MAE_if_using_4_root:>0.3f} \n")
+
+
+            temp_y = all_y.copy()**5
+            R2_if_using_5_root = 1 - (all_y_pred**5 - temp_y).var() / temp_y.var()
+            MAE_if_using_5_root = np.abs(all_y_pred**5 - temp_y).mean()
+            print(f"R2_if_using_5_root: {(R2_if_using_5_root):>0.3f}%, MAE_if_using_5_root: {MAE_if_using_5_root:>0.3f} \n")
+
+
+            temp_y = all_y.copy()**8
+            R2_if_using_8_root = 1 - (all_y_pred**8 - temp_y).var() / temp_y.var()
+            MAE_if_using_8_root = np.abs(all_y_pred**8 - temp_y).mean()
+            print(f"R2_if_using_8_root: {(R2_if_using_8_root):>0.3f}%, MAE_if_using_8_root: {MAE_if_using_8_root:>0.3f} \n")
+
+            return R2_if_using_root, test_loss
         
 
    
@@ -447,6 +505,9 @@ class RunModel:
 
 
             X_train, X_test, y_train, y_test = train_test_split(self.data[0], self.data[1], test_size=0.2) #, random_state=42)
+
+            X_train = X_train.toarray()
+            X_test = X_test.toarray()
 
             train_data = CustomDataset(X_train, y_train)
             test_data = CustomDataset(X_test, y_test)
@@ -478,6 +539,10 @@ class RunModel:
                 R2, loss = self.test(test_dataloader)
                 R2s.append(R2)
                 avg_losses.append(loss)
+
+                if len(R2s) > 10 and R2s[-1] < R2s[-2] and R2s[-2] < R2s[-3]:
+                    print("Early Stopping!")
+                    break
             print("Done!")
 
 
@@ -511,6 +576,9 @@ class RunModel:
             new_df.to_csv(self.model_data_path + "train_times_" + str(self.prev_serial_num+1) + ".csv")
 
             print("Saved PyTorch Model State")
+
+
+            
 
 
 
